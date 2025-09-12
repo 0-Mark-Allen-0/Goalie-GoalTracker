@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  backend:
+    build: ./backend
+    # NEW
+    env_file:
+      - ./.env
+    container_name: fastapi-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    restart: always
+
+  frontend:
+    build: ./frontend
+    container_name: vite-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: always
