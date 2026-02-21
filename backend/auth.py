@@ -179,8 +179,8 @@ async def google_callback (code: str):
         key="jwt_token",
         value=jwt_token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=True,
+        samesite="none",
     )
 
     return response
@@ -203,5 +203,5 @@ async def get_me(user = Depends(get_current_user)):
 async def logout():
     # response = RedirectResponse(url="http://localhost:5173/")
     response = RedirectResponse(url=f"{FRONTEND_URL}/")
-    response.delete_cookie(key="jwt_token")
+    response.delete_cookie(key="jwt_token", secure=True, samesite="none")
     return response
