@@ -667,7 +667,7 @@ import { useEffect, useState } from "react";
 // UPDATE - Importing the new API for completing goals
 
 // UPDATE 2 - Including user verification based on JWT
-import { getGoals } from "./api/goals";
+import { getGoals, getCurrentUser } from "./api/goals";
 import type { Goal } from "./api/goals";
 import { GoalCard } from "./GoalCard";
 import { GoalForm } from "./GoalForm";
@@ -714,17 +714,17 @@ type SortOption = "name" | "progress" | "target" | "created" | "remaining";
 type FilterOption = "all" | "active" | "completed" | "near-completion";
 
 // NEW - Fetch User
-async function fetchUser() {
-  const res = await fetch("http://localhost:8000/auth/me", {
-    method: "GET",
-    credentials: "include",
-  });
+// async function fetchUser() {
+//   const res = await fetch("http://localhost:8000/auth/me", {
+//     method: "GET",
+//     credentials: "include",
+//   });
 
-  if (!res.ok) {
-    throw new Error("Unauthorized");
-  }
-  return res.json();
-}
+//   if (!res.ok) {
+//     throw new Error("Unauthorized");
+//   }
+//   return res.json();
+// }
 
 export function Dashboard() {
   const [goals, setGoals] = useState<Goal[]>([]);
@@ -756,7 +756,8 @@ export function Dashboard() {
   useEffect(() => {
     const verifyUserAndFetchGoals = async () => {
       try {
-        await fetchUser();
+        // await fetchUser();
+        await getCurrentUser();
         fetchGoals();
       } catch (error) {
         console.error("User verification failed:", error);
@@ -846,10 +847,10 @@ export function Dashboard() {
   const stats = {
     total: activeGoals.length,
     completed: activeGoals.filter(
-      (goal) => goal.currentValue >= goal.targetValue
+      (goal) => goal.currentValue >= goal.targetValue,
     ).length,
     inProgress: activeGoals.filter(
-      (goal) => goal.currentValue > 0 && goal.currentValue < goal.targetValue
+      (goal) => goal.currentValue > 0 && goal.currentValue < goal.targetValue,
     ).length,
     totalTarget: activeGoals.reduce((sum, goal) => sum + goal.targetValue, 0),
     totalSaved: activeGoals.reduce((sum, goal) => sum + goal.currentValue, 0),
@@ -859,11 +860,11 @@ export function Dashboard() {
     total: completedGoals.length,
     totalTarget: completedGoals.reduce(
       (sum, goal) => sum + goal.targetValue,
-      0
+      0,
     ),
     totalSaved: completedGoals.reduce(
       (sum, goal) => sum + goal.currentValue,
-      0
+      0,
     ),
   };
 
@@ -947,11 +948,11 @@ export function Dashboard() {
                   {showHistory
                     ? Math.round(
                         (historyStats.totalSaved / historyStats.totalTarget) *
-                          100
+                          100,
                       )
                     : stats.totalTarget > 0
-                    ? Math.round((stats.totalSaved / stats.totalTarget) * 100)
-                    : 0}
+                      ? Math.round((stats.totalSaved / stats.totalTarget) * 100)
+                      : 0}
                   %
                 </div>
                 <div className="text-sm text-blue-200">
