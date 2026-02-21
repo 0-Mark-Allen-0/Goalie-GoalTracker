@@ -72,9 +72,13 @@ export interface Goal {
   completed?: boolean;
 }
 
+// Use environment variable or fallback to localhost for development
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 // Create an Axios instance with credentials included
 const api = axios.create({
-  baseURL: "http://localhost:8000/goals",
+  baseURL: `${API_BASE_URL}/goals`,
   withCredentials: true,
 });
 
@@ -86,7 +90,7 @@ api.interceptors.response.use(
       window.location.href = "/";
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export const getGoals = () => api.get<Goal[]>("/");
@@ -97,11 +101,7 @@ export const deleteGoal = (id: string) => api.delete<{ msg: string }>(`/${id}`);
 export const completeGoal = (id: string) => api.put<Goal>(`/${id}/complete`);
 
 export const getCurrentUser = () =>
-  axios.get("http://localhost:8000/auth/me", { withCredentials: true });
+  axios.get(`${API_BASE_URL}/auth/me`, { withCredentials: true });
 
 export const logout = () =>
-  axios.post(
-    "http://localhost:8000/auth/logout",
-    {},
-    { withCredentials: true }
-  );
+  axios.post(`${API_BASE_URL}/auth/logout`, {}, { withCredentials: true });

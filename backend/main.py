@@ -4,13 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth import router as auth_router
 import goals
 from crud import router as goals_router
+import os
 
 app = FastAPI()
+
+FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 origins = [
     "https://localhost:5173",
     "http://localhost:5173",
-    "http://localhost:3000"
+    "http://localhost:3000",
+    FRONTEND_URL
 ]
 
 app.add_middleware(
