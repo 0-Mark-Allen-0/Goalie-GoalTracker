@@ -1,7 +1,8 @@
 const Home = () => {
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
   const handleSignIn = () => {
     // Redirect to the FastAPI endpoint for Google login
-    window.location.href = "http://localhost:8000/auth/google/login";
+    window.location.href = `${API_BASE_URL}/auth/google/login`;
   };
 
   return (
