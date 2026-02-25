@@ -1,44 +1,48 @@
+# FULL REWRITE - Async. Updates:
 from typing import List
-from fastapi import APIRouter, HTTPException
-from schemas import Goal, GoalUpdate
-from crud import createGoal, getGoal, getGoals, updateGoal, deleteGoal
-
-# UPDATE - Some changes to incorporate the 'completed' feature
+from fastapi import APIRouter, HTTPException, Depends
+from schemas import Goal, GoalUpdate, ContributionRequest
+from crud import createGoal, getGoal, getGoals, updateGoal, deleteGoal, addContribution
+from auth import get_current_user
 
 router = APIRouter(prefix="/goals", tags=["Goals"])
 
+
 @router.post("/", response_model=Goal)
-def add_goal(goal: Goal):
-    return createGoal(goal.dict())
+async def add_goal(goal: Goal, user=Depends(get_current_user)):
+    return await createGoal(goal.dict(), user)
+
 
 @router.get("/", response_model=List[Goal])
-def read_goals():
-    return getGoals()
+async def read_goals(user=Depends(get_current_user)):
+    return await getGoals(user)
+
 
 @router.get("/{id}", response_model=Goal)
-def read_goal(id: str):
-    return getGoal(id)
+async def read_goal(id: str, user=Depends(get_current_user)):
+    return await getGoal(id, user)
 
-# @router.put("/{id}", response_model=Goal)
-# def modify_goal(id: str, goal: Goal):
-#     return updateGoal(id, goal.dict())
 
 @router.put("/{id}")
-async def modify_goal(id: str, goal: GoalUpdate):
+async def modify_goal(id: str, goal: GoalUpdate, user=Depends(get_current_user)):
     update_data = {k: v for k, v in goal.dict().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
-    updated_goal = updateGoal(id, update_data)
-    return updated_goal
+    return await updateGoal(id, update_data, user)
+
+
+@router.post("/{id}/contributions")
+async def add_goal_contribution(
+    id: str, payload: ContributionRequest, user=Depends(get_current_user)
+):
+    return await addContribution(id, payload.dict(), user)
+
 
 @router.delete("/{id}")
-def delete_goal(id: str):
-    if deleteGoal(id):
-        return {"message": "Goal deleted"}
-    raise HTTPException(status_code=404, detail="Goal not found")
+async def delete_goal(id: str, user=Depends(get_current_user)):
+    return await deleteGoal(id, user)
 
-# NEW
+
 @router.put("/{id}/complete")
-async def complete_goal(id: str):
-    updated_goal = updateGoal(id, {"completed" : True})
-    return updated_goal
+async def complete_goal(id: str, user=Depends(get_current_user)):
+    return await updateGoal(id, {"completed": True}, user)
