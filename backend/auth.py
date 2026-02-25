@@ -22,7 +22,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-JWT_SECRET = os.getenv("JWT_SECRET", "supersecret")
+JWT_SECRET = os.getenv("JWT_SECRET_KEY", "supersecret")
 JWT_ALGORITHM = "HS256"
 REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
 
@@ -55,19 +55,6 @@ def get_current_user (jwt_token: str = Cookie(None)):
     except JWTError:
         raise HTTPException(status_code=403, detail="Invalid or expired token.")
 
-
-# @router.get("/google/login")
-# async def google_login():
-#     google_url = (
-#         "https://accounts.google.com/o/oauth2/v2/auth?"
-#         f"client_id={GOOGLE_CLIENT_ID}"
-#         f"&response_type=code"
-#         f"&redirect_uri={REDIRECT_URI}"
-#         f"&scope=openid email profile"
-#     )
-#
-#     return RedirectResponse(url=google_url)
-
 # NEW - Updated google/login endpoint
 @router.get("/google/login")
 async def google_login():
@@ -85,45 +72,6 @@ async def google_login():
 
     google_url = f"https://accounts.google.com/o/oauth2/v2/auth?{urlencode(params)}"
     return RedirectResponse(url=google_url)
-
-
-
-# @router.get("/google/callback")
-# async def google_callback(code: str):
-#     token_url = "https://accounts.google.com/o/oauth2/token"
-#     data = {
-#         "code": code,
-#         "client_id": GOOGLE_CLIENT_ID,
-#         "client_secret": GOOGLE_CLIENT_SECRET,
-#         "redirect_uri": REDIRECT_URI,
-#         "grant_type": "authorization_code",
-#     }
-#
-#     r = requests.post(token_url, data=data)
-#     if not r.ok:
-#         raise HTTPException(status_code=400, detail="Google Auth failed")
-#     tokens = r.json()
-#
-#     user_info = requests.get(
-#         "https://www.googleapis.com/oauth2/v3/userinfo",
-#         headers={"Authorization": f"Bearer {tokens['access_token']}"},
-#     ).json()
-#
-#     existing = users_collection.find_one({"email": user_info["email"]})
-#     if not existing:
-#         user_doc = {
-#             "email": user_info["email"],
-#             "name": user_info["name"],
-#             "google_id": user_info["id"],
-#         }
-#         result = users_collection.insert_one(user_doc)
-#         user_doc["id"] = result.inserted_id
-#         existing = user_doc
-#
-#     jwt_token = create_jwt(existing)
-#     response = RedirectResponse(url="http://localhost:5173/dashboard")
-#     response.set_cookie(key="jwt", value=jwt_token, httponly=True, secure=False)
-#     return response
 
 # NEW - Updated google/callback endpoint
 @router.get("/google/callback")
@@ -148,7 +96,10 @@ async def google_callback (code: str):
         r.raise_for_status()
         tokens = r.json()
     except requests.exceptions.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Failed to exchange code for token: {str(e)}")
+        # Extract the actual JSON error from Google
+        error_body = e.response.text if e.response is not None else str(e)
+        print(f"GOOGLE OAUTH ERROR: {error_body}") # This will print in your terminal
+        raise HTTPException(status_code=400, detail=f"Failed to exchange code for token: {error_body}")
 
     try:
         user_response = requests.get(
@@ -160,7 +111,7 @@ async def google_callback (code: str):
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=400, detail=f"Failed to get user info: {str(e)}")
 
-    existing = users_collection.find_one({"email": user_info["email"]})
+    existing = await users_collection.find_one({"email": user_info["email"]})
     if not existing:
         user_doc = {
             "email": user_info["email"],
@@ -168,7 +119,7 @@ async def google_callback (code: str):
             "google_id": user_info["sub"],
         }
 
-        result = users_collection.insert_one(user_doc)
+        result = await users_collection.insert_one(user_doc)
         user_doc["_id"] = result.inserted_id
         existing = user_doc
 
@@ -187,7 +138,7 @@ async def google_callback (code: str):
 
 @router.get("/me")
 async def get_me(user = Depends(get_current_user)):
-    db_user = users_collection.find_one({"_id": ObjectId(user["sub"])})
+    db_user = await users_collection.find_one({"_id": ObjectId(user["sub"])})
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
