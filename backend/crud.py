@@ -1,146 +1,12 @@
-# # Define all CRUD functions to perform on the database over here
-#
-# # UPDATE - Some changes to incorporate the 'completed' feature
-#
-# # UPDATE 2 - JWT integration to all endpoints
-# from fastapi import APIRouter, Depends, HTTPException, status
-# from auth import get_current_user
-#
-#
-# from database import goals_collection
-# from bson import ObjectId
-#
-# # UPDATE
-# # def goalHelper(goal) -> dict:
-# #     return {
-# #         "id": str(goal["_id"]),
-# #         "name": goal["name"],
-# #         "description": goal["description"],
-# #         "category": goal["category"],
-# #         "colour": goal["colour"],
-# #         "targetValue": goal["targetValue"],
-# #         "currentValue": goal["currentValue"],
-# #         # NEW
-# #         "completed": goal.get("completed", False)
-# #     }
-# #
-# # # UPDATE
-# # def createGoal(goal: dict) -> dict:
-# #     # NEW
-# #     if "completed" not in goal:
-# #         goal["completed"] = False
-# #     result = goals_collection.insert_one(goal)
-# #     newGoal = goals_collection.find_one({"_id": result.inserted_id})
-# #     return goalHelper(newGoal)
-# #
-# # def getGoals():
-# #     return [goalHelper(goal) for goal in goals_collection.find()]
-# #
-# # def getGoal(id: str):
-# #     return goalHelper(goals_collection.find_one({"_id": ObjectId(id)}))
-# #
-# # def updateGoal(id: str, data: dict):
-# #     goals_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
-# #     return getGoal(id)
-# #
-# # def deleteGoal(id: str):
-# #     goals_collection.delete_one({"_id": ObjectId(id)})
-# #     return True
-#
-#
-# # NEWLY REWORKED ENDPOINTS:
-# router = APIRouter(prefix="/goals", tags=["goals"])
-#
-#
-# # Helper function to serialize a goal document
-# def goalHelper(goal) -> dict:
-#     return {
-#         "id": str(goal["_id"]),
-#         "name": goal["name"],
-#         "description": goal["description"],
-#         "category": goal["category"],
-#         "colour": goal["colour"],
-#         "targetValue": goal["targetValue"],
-#         "currentValue": goal["currentValue"],
-#         "completed": goal.get("completed", False),
-#         "userId": goal["userId"]  # Added userId for clarity
-#     }
-#
-#
-# # Endpoint to create a new goal for the authenticated user
-# @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
-# def createGoal(goal: dict, user=Depends(get_current_user)):
-#     # Add the userId from the JWT payload to the goal document
-#     goal["userId"] = user["sub"]
-#     if "completed" not in goal:
-#         goal["completed"] = False
-#
-#     result = goals_collection.insert_one(goal)
-#     newGoal = goals_collection.find_one({"_id": result.inserted_id})
-#     return goalHelper(newGoal)
-#
-#
-# # Endpoint to get all goals for the authenticated user
-# @router.get("/", response_model=list)
-# def getGoals(user=Depends(get_current_user)):
-#     # Filter goals by the authenticated user's ID
-#     goals = goals_collection.find({"userId": user["sub"]})
-#     return [goalHelper(goal) for goal in goals]
-#
-#
-# # Endpoint to get a single goal by its ID
-# @router.get("/{id}", response_model=dict)
-# def getGoal(id: str, user=Depends(get_current_user)):
-#     goal = goals_collection.find_one({"_id": ObjectId(id)})
-#     if not goal:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-#
-#     # Ensure the authenticated user owns the goal
-#     if goal["userId"] != user["sub"]:
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to access this goal.")
-#
-#     return goalHelper(goal)
-#
-#
-# # Endpoint to update a goal
-# @router.put("/{id}", response_model=dict)
-# def updateGoal(id: str, data: dict, user=Depends(get_current_user)):
-#     existing_goal = goals_collection.find_one({"_id": ObjectId(id)})
-#     if not existing_goal:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-#
-#     # Ensure the authenticated user owns the goal
-#     if existing_goal["userId"] != user["sub"]:
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to update this goal.")
-#
-#     goals_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
-#     return goalHelper(goals_collection.find_one({"_id": ObjectId(id)}))
-#
-#
-# # Endpoint to delete a goal
-# @router.delete("/{id}", response_model=dict)
-# def deleteGoal(id: str, user=Depends(get_current_user)):
-#     existing_goal = goals_collection.find_one({"_id": ObjectId(id)})
-#     if not existing_goal:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-#
-#     # Ensure the authenticated user owns the goal
-#     if existing_goal["userId"] != user["sub"]:
-#         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to delete this goal.")
-#
-#     result = goals_collection.delete_one({"_id": ObjectId(id)})
-#     if result.deleted_count == 0:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-#
-#     return {"message": "Goal deleted successfully."}
-
-# UPDATED crud.py (v0)
+# FULL REWRITE - Asynchronous Ops. & Contribution Ledger Logic
 from fastapi import APIRouter, Depends, HTTPException, status
 from auth import get_current_user
 from database import goals_collection
 from bson import ObjectId
+from datetime import datetime
 
 router = APIRouter(prefix="/goals", tags=["goals"])
+
 
 def goalHelper(goal) -> dict:
     return {
@@ -150,72 +16,150 @@ def goalHelper(goal) -> dict:
         "category": goal["category"],
         "colour": goal["colour"],
         "targetValue": goal["targetValue"],
-        "currentValue": goal["currentValue"],
+        "currentValue": goal.get("currentValue", 0),  # Default to 0 if not present
         "completed": goal.get("completed", False),
-        "userId": goal["userId"]
+        "userId": goal["userId"],
+        # NEW - Include contributions in the response for ledger integrity
+        "contributions": goal.get("contributions", []),
     }
 
+
 @router.post("/", response_model=dict, status_code=status.HTTP_201_CREATED)
-def createGoal(goal: dict, user=Depends(get_current_user)):
+async def createGoal(goal: dict, user=Depends(get_current_user)):
     goal["userId"] = user["sub"]
     if "completed" not in goal:
         goal["completed"] = False
+    if "currentValue" not in goal:
+        goal["currentValue"] = 0
+    if "contributions" not in goal:
+        goal["contributions"] = []
 
-    result = goals_collection.insert_one(goal)
-    newGoal = goals_collection.find_one({"_id": result.inserted_id})
+    result = await goals_collection.insert_one(goal)
+    newGoal = await goals_collection.find_one({"_id": result.inserted_id})
     return goalHelper(newGoal)
 
+
 @router.get("/", response_model=list)
-def getGoals(user=Depends(get_current_user)):
-    goals = goals_collection.find({"userId": user["sub"]})
+async def getGoals(user=Depends(get_current_user)):
+    goals_cursor = goals_collection.find({"userId": user["sub"]})
+    goals = await goals_cursor.to_list(length=1000)
     return [goalHelper(goal) for goal in goals]
 
+
 @router.get("/{id}", response_model=dict)
-def getGoal(id: str, user=Depends(get_current_user)):
-    goal = goals_collection.find_one({"_id": ObjectId(id)})
+async def getGoal(id: str, user=Depends(get_current_user)):
+    goal = await goals_collection.find_one({"_id": ObjectId(id)})
     if not goal:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="404: Goal not found."
+        )
 
     if goal["userId"] != user["sub"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to access this goal.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="403: You are not authorized to access this goal.",
+        )
 
     return goalHelper(goal)
 
+
 @router.put("/{id}", response_model=dict)
-def updateGoal(id: str, data: dict, user=Depends(get_current_user)):
-    existing_goal = goals_collection.find_one({"_id": ObjectId(id)})
+async def updateGoal(id: str, data: dict, user=Depends(get_current_user)):
+    existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})
     if not existing_goal:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="404: Goal not found."
+        )
 
     if existing_goal["userId"] != user["sub"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to update this goal.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="403: You are not authorized to update this goal.",
+        )
 
-    goals_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
-    return goalHelper(goals_collection.find_one({"_id": ObjectId(id)}))
+    await goals_collection.update_one({"_id": ObjectId(id)}, {"$set": data})
+    updated_goal = await goals_collection.find_one({"_id": ObjectId(id)})
+    return goalHelper(updated_goal)
+
+
+# NEW - Contribution Logic:
+@router.post("/{id}/contributions", response_model=dict)
+async def addContribution(id: str, payload: dict, user=Depends(get_current_user)):
+    existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})
+    if not existing_goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found."
+        )
+    if existing_goal["userId"] != user["sub"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized."
+        )
+
+    amount = payload.get("amount")
+    c_type = payload.get("type")
+
+    if amount <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Amount must be greater than zero.",
+        )
+    if c_type not in ["deposit", "withdrawal"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid contribution type."
+        )
+
+    current_val = existing_goal.get("currentValue", 0)
+    target_val = existing_goal.get("targetValue", 0)
+
+    if c_type == "deposit":
+        if current_val + amount > target_val:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Deposit exceeds target amount.",
+            )
+        increment = amount
+    else:
+        if current_val - amount < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Withdrawal exceeds current balance.",
+            )
+        increment = -amount
+
+    contribution_record = {
+        "amount": amount,
+        "type": c_type,
+        "timestamp": datetime.utcnow(),
+    }
+
+    await goals_collection.update_one(
+        {"_id": ObjectId(id)},
+        {
+            "$inc": {"currentValue": increment},
+            "$push": {"contributions": contribution_record},
+        },
+    )
+
+    updated_goal = await goals_collection.find_one({"_id": ObjectId(id)})
+    return goalHelper(updated_goal)
+
 
 @router.delete("/{id}", response_model=dict)
-def deleteGoal(id: str, user=Depends(get_current_user)):
-    existing_goal = goals_collection.find_one({"_id": ObjectId(id)})
+async def deleteGoal(id: str, user=Depends(get_current_user)):
+    existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})
     if not existing_goal:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found."
+        )
     if existing_goal["userId"] != user["sub"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to delete this goal.")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not authorized to delete this goal.",
+        )
 
-    result = goals_collection.delete_one({"_id": ObjectId(id)})
+    result = await goals_collection.delete_one({"_id": ObjectId(id)})
     if result.deleted_count == 0:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found."
+        )
     return {"message": "Goal deleted successfully."}
-
-@router.put("/{id}/complete", response_model=dict)
-def completeGoal(id: str, user=Depends(get_current_user)):
-    existing_goal = goals_collection.find_one({"_id": ObjectId(id)})
-    if not existing_goal:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
-
-    if existing_goal["userId"] != user["sub"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You are not authorized to update this goal.")
-
-    goals_collection.update_one({"_id": ObjectId(id)}, {"$set": {"completed": True}})
-    return goalHelper(goals_collection.find_one({"_id": ObjectId(id)}))
