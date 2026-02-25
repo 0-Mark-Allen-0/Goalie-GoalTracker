@@ -1,17 +1,15 @@
-from pymongo import MongoClient
+# FULL REWRITE - Introducing Motor, an async MongoDB driver, to work with FastAPI's async capabilities
 import os
+from motor.motor_asyncio import AsyncIOMotorClient
 from dotenv import load_dotenv
+
 load_dotenv()
 
-# UPDATE - Introducing User login through Google - Using a Mongo collection to store users
-# UPDATE 1.5 - Mongo client moved to .env file
-
 MONGO_CLIENT = os.getenv("MONGO_CLIENT")
-client = MongoClient(MONGO_CLIENT)
-# client = MongoClient("mongodb+srv://allenmark2005:085af178@cluster0.bqvuzaz.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0")
+# Hooking up to the Atlas Cluster with AsyncIOMotorClient, which is the async version of MongoClient
+client = AsyncIOMotorClient(MONGO_CLIENT)
 
 db = client["goal_app"]
 
-# NEW
 users_collection = db["users"]
 goals_collection = db["goals"]
