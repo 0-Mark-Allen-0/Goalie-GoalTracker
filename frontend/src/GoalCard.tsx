@@ -1,1148 +1,9 @@
-// // UPDATE - Importing the new API for completing goals
-// import { useState } from "react";
-// // NEW
-// import { updateGoal, deleteGoal, completeGoal } from "@/api/goals";
-// import type { Goal } from "./api/goals";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Button } from "@/components/ui/button";
-// import { Progress } from "@/components/ui/progress";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import {
-//   AlertDialog,
-//   AlertDialogAction,
-//   AlertDialogCancel,
-//   AlertDialogContent,
-//   AlertDialogDescription,
-//   AlertDialogFooter,
-//   AlertDialogHeader,
-//   AlertDialogTitle,
-//   AlertDialogTrigger,
-// } from "@/components/ui/alert-dialog";
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogFooter,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogTrigger,
-// } from "@/components/ui/dialog";
-// import {
-//   Plus,
-//   Minus,
-//   Trash2,
-//   CheckCircle2,
-//   Target,
-//   IndianRupee,
-// } from "lucide-react";
-
-// interface GoalCardProps {
-//   goal: Goal;
-//   onGoalUpdated: () => void;
-// }
-
-// export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
-//   const [addAmount, setAddAmount] = useState<string>("");
-//   const [subtractAmount, setSubtractAmount] = useState<string>("");
-//   const [addDialogOpen, setAddDialogOpen] = useState(false);
-//   const [subtractDialogOpen, setSubtractDialogOpen] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const progress = Math.min((goal.currentValue / goal.targetValue) * 100, 100);
-//   const isCompleted = goal.currentValue >= goal.targetValue;
-//   const remainingAmount = goal.targetValue - goal.currentValue;
-
-//   const handleAdd = async () => {
-//     const amount = parseFloat(addAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow adding more than the remaining target amount
-//     const finalAmount = Math.min(amount, remainingAmount);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue + finalAmount,
-//       });
-//       onGoalUpdated();
-//       setAddAmount("");
-//       setAddDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleSubtract = async () => {
-//     const amount = parseFloat(subtractAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow going into negative values
-//     const finalAmount = Math.min(amount, goal.currentValue);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue - finalAmount,
-//       });
-//       onGoalUpdated();
-//       setSubtractAmount("");
-//       setSubtractDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleDelete = async () => {
-//     setLoading(true);
-//     try {
-//       await deleteGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleComplete = async () => {
-//     setLoading(true);
-//     try {
-//       await completeGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const formatCurrency = (amount: number) => {
-//     return new Intl.NumberFormat("en-IN", {
-//       style: "currency",
-//       currency: "INR",
-//       maximumFractionDigits: 0,
-//     }).format(amount);
-//   };
-
-//   return (
-//     <Card className="group relative overflow-hidden bg-gradient-to-br from-white via-gray-50/50 to-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-//       {/* Color accent bar */}
-//       <div
-//         className="absolute top-0 left-0 w-full h-1.5"
-//         style={{ backgroundColor: goal.colour }}
-//       />
-
-//       {/* Completion badge */}
-//       {isCompleted && (
-//         <div className="absolute top-4 right-4 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-//           <CheckCircle2 className="w-3 h-3" />
-//           Complete
-//         </div>
-//       )}
-
-//       <CardHeader className="pb-4">
-//         <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-//           <Target className="w-5 h-5" style={{ color: goal.colour }} />
-//           {goal.name}
-//         </CardTitle>
-//       </CardHeader>
-
-//       <CardContent className="space-y-6">
-//         <p className="text-sm text-gray-600 leading-relaxed">
-//           {goal.description}
-//         </p>
-
-//         {/* Progress section */}
-//         <div className="space-y-3">
-//           <div className="flex justify-between items-center">
-//             <span className="text-2xl font-bold text-gray-900 flex items-center gap-1">
-//               <IndianRupee className="w-5 h-5" />
-//               {goal.currentValue.toLocaleString("en-IN")}
-//             </span>
-//             <span className="text-lg text-gray-500 flex items-center gap-1">
-//               <IndianRupee className="w-4 h-4" />
-//               {goal.targetValue.toLocaleString("en-IN")}
-//             </span>
-//           </div>
-
-//           <div className="space-y-2">
-//             <Progress
-//               value={progress}
-//               className="h-3 bg-gray-200"
-//               style={
-//                 {
-//                   "--progress-foreground": goal.colour,
-//                 } as React.CSSProperties
-//               }
-//             />
-//             <div className="flex justify-between text-xs text-gray-500">
-//               <span>{progress.toFixed(1)}% completed</span>
-//               {!isCompleted && (
-//                 <span>{formatCurrency(remainingAmount)} remaining</span>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Action buttons */}
-//         <div className="flex gap-2 flex-wrap">
-//           {/* Add Amount Dialog */}
-//           <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-//             <DialogTrigger asChild>
-//               <Button
-//                 className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-//                 disabled={isCompleted || loading}
-//               >
-//                 <Plus className="w-4 h-4" />
-//                 Add
-//               </Button>
-//             </DialogTrigger>
-//             <DialogContent>
-//               <DialogHeader>
-//                 <DialogTitle>Add Amount to Goal</DialogTitle>
-//                 <DialogDescription>
-//                   How much would you like to add to <strong>{goal.name}</strong>
-//                   ?
-//                   {remainingAmount > 0 && (
-//                     <span className="block mt-2 text-sm">
-//                       Maximum amount you can add:{" "}
-//                       {formatCurrency(remainingAmount)}
-//                     </span>
-//                   )}
-//                 </DialogDescription>
-//               </DialogHeader>
-//               <div className="py-4">
-//                 <Label htmlFor="add-amount">Amount (INR)</Label>
-//                 <Input
-//                   id="add-amount"
-//                   type="number"
-//                   placeholder="Enter amount"
-//                   value={addAmount}
-//                   onChange={(e) => setAddAmount(e.target.value)}
-//                   min="1"
-//                   max={remainingAmount}
-//                   className="mt-2"
-//                 />
-//               </div>
-//               <DialogFooter>
-//                 <Button
-//                   variant="outline"
-//                   onClick={() => setAddDialogOpen(false)}
-//                 >
-//                   Cancel
-//                 </Button>
-//                 <Button
-//                   onClick={handleAdd}
-//                   disabled={
-//                     !addAmount ||
-//                     parseFloat(addAmount) <= 0 ||
-//                     parseFloat(addAmount) > remainingAmount ||
-//                     loading
-//                   }
-//                 >
-//                   Add Amount
-//                 </Button>
-//               </DialogFooter>
-//             </DialogContent>
-//           </Dialog>
-
-//           {/* Subtract Amount Dialog */}
-//           <Dialog
-//             open={subtractDialogOpen}
-//             onOpenChange={setSubtractDialogOpen}
-//           >
-//             <DialogTrigger asChild>
-//               <Button
-//                 variant="outline"
-//                 className="flex items-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
-//                 disabled={goal.currentValue <= 0 || loading}
-//               >
-//                 <Minus className="w-4 h-4" />
-//                 Subtract
-//               </Button>
-//             </DialogTrigger>
-//             <DialogContent>
-//               <DialogHeader>
-//                 <DialogTitle>Subtract Amount from Goal</DialogTitle>
-//                 <DialogDescription>
-//                   How much would you like to subtract from{" "}
-//                   <strong>{goal.name}</strong>?
-//                   <span className="block mt-2 text-sm">
-//                     Maximum amount you can subtract:{" "}
-//                     {formatCurrency(goal.currentValue)}
-//                   </span>
-//                 </DialogDescription>
-//               </DialogHeader>
-//               <div className="py-4">
-//                 <Label htmlFor="subtract-amount">Amount (INR)</Label>
-//                 <Input
-//                   id="subtract-amount"
-//                   type="number"
-//                   placeholder="Enter amount"
-//                   value={subtractAmount}
-//                   onChange={(e) => setSubtractAmount(e.target.value)}
-//                   min="1"
-//                   max={goal.currentValue}
-//                   className="mt-2"
-//                 />
-//               </div>
-//               <DialogFooter>
-//                 <Button
-//                   variant="outline"
-//                   onClick={() => setSubtractDialogOpen(false)}
-//                 >
-//                   Cancel
-//                 </Button>
-//                 <Button
-//                   onClick={handleSubtract}
-//                   disabled={
-//                     !subtractAmount ||
-//                     parseFloat(subtractAmount) <= 0 ||
-//                     parseFloat(subtractAmount) > goal.currentValue ||
-//                     loading
-//                   }
-//                 >
-//                   Subtract Amount
-//                 </Button>
-//               </DialogFooter>
-//             </DialogContent>
-//           </Dialog>
-
-//           {/* Complete Goal AlertDialog - Only show if goal can be completed */}
-//           {isCompleted && (
-//             <AlertDialog>
-//               <AlertDialogTrigger asChild>
-//                 <Button
-//                   className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-//                   disabled={loading}
-//                 >
-//                   <CheckCircle2 className="w-4 h-4" />
-//                   Mark Complete
-//                 </Button>
-//               </AlertDialogTrigger>
-//               <AlertDialogContent>
-//                 <AlertDialogHeader>
-//                   <AlertDialogTitle>🎉 Congratulations!</AlertDialogTitle>
-//                   <AlertDialogDescription>
-//                     You've reached your target for <strong>{goal.name}</strong>!
-//                     Would you like to mark this goal as officially complete?
-//                   </AlertDialogDescription>
-//                 </AlertDialogHeader>
-//                 <AlertDialogFooter>
-//                   <AlertDialogCancel>Not Yet</AlertDialogCancel>
-//                   <AlertDialogAction
-//                     onClick={handleComplete}
-//                     disabled={loading}
-//                   >
-//                     Yes, Mark Complete!
-//                   </AlertDialogAction>
-//                 </AlertDialogFooter>
-//               </AlertDialogContent>
-//             </AlertDialog>
-//           )}
-
-//           {/* Delete Goal */}
-//           <AlertDialog>
-//             <AlertDialogTrigger asChild>
-//               <Button
-//                 variant="destructive"
-//                 className="flex items-center gap-2 ml-auto"
-//                 disabled={loading}
-//               >
-//                 <Trash2 className="w-4 h-4" />
-//                 Delete
-//               </Button>
-//             </AlertDialogTrigger>
-//             <AlertDialogContent>
-//               <AlertDialogHeader>
-//                 <AlertDialogTitle>Delete Goal</AlertDialogTitle>
-//                 <AlertDialogDescription>
-//                   Are you sure you want to delete <strong>{goal.name}</strong>?
-//                   This action cannot be undone and all progress will be lost.
-//                 </AlertDialogDescription>
-//               </AlertDialogHeader>
-//               <AlertDialogFooter>
-//                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-//                 <AlertDialogAction onClick={handleDelete} disabled={loading}>
-//                   Yes, Delete
-//                 </AlertDialogAction>
-//               </AlertDialogFooter>
-//             </AlertDialogContent>
-//           </AlertDialog>
-//         </div>
-//       </CardContent>
-//     </Card>
-//   );
-// }
-
-// import { useState } from "react";
-// // NEW
-// import { updateGoal, deleteGoal, completeGoal } from "./api/goals";
-// import type { Goal } from "./api/goals";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Button } from "@/components/ui/button";
-// import { Progress } from "@/components/ui/progress";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import {
-//   AlertDialog,
-//   AlertDialogAction,
-//   AlertDialogCancel,
-//   AlertDialogContent,
-//   AlertDialogDescription,
-//   AlertDialogFooter,
-//   AlertDialogHeader,
-//   AlertDialogTitle,
-//   AlertDialogTrigger,
-// } from "@/components/ui/alert-dialog";
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogFooter,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogTrigger,
-// } from "@/components/ui/dialog";
-// import {
-//   Plus,
-//   Minus,
-//   Trash2,
-//   CheckCircle2,
-//   Target,
-//   IndianRupee,
-// } from "lucide-react";
-
-// interface GoalCardProps {
-//   goal: Goal;
-//   onGoalUpdated: () => void;
-// }
-
-// export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
-//   const [addAmount, setAddAmount] = useState<string>("");
-//   const [subtractAmount, setSubtractAmount] = useState<string>("");
-//   const [addDialogOpen, setAddDialogOpen] = useState(false);
-//   const [subtractDialogOpen, setSubtractDialogOpen] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const progress = Math.min((goal.currentValue / goal.targetValue) * 100, 100);
-//   const isCompleted = goal.currentValue >= goal.targetValue;
-//   const remainingAmount = goal.targetValue - goal.currentValue;
-
-//   const handleAdd = async () => {
-//     const amount = parseFloat(addAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow adding more than the remaining target amount
-//     const finalAmount = Math.min(amount, remainingAmount);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue + finalAmount,
-//       });
-//       onGoalUpdated();
-//       setAddAmount("");
-//       setAddDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleSubtract = async () => {
-//     const amount = parseFloat(subtractAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow going into negative values
-//     const finalAmount = Math.min(amount, goal.currentValue);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue - finalAmount,
-//       });
-//       onGoalUpdated();
-//       setSubtractAmount("");
-//       setSubtractDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleDelete = async () => {
-//     setLoading(true);
-//     try {
-//       await deleteGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleComplete = async () => {
-//     setLoading(true);
-//     try {
-//       await completeGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const formatCurrency = (amount: number) => {
-//     return new Intl.NumberFormat("en-IN", {
-//       style: "currency",
-//       currency: "INR",
-//       maximumFractionDigits: 0,
-//     }).format(amount);
-//   };
-
-//   return (
-//     <Card className="h-[400px] group relative overflow-hidden bg-gradient-to-br from-white via-gray-50/50 to-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-//       {/* Color accent bar */}
-//       <div
-//         className="absolute top-0 left-0 w-full h-1.5"
-//         style={{ backgroundColor: goal.colour }}
-//       />
-
-//       {/* Completion badge */}
-//       {isCompleted && (
-//         <div className="absolute top-4 right-4 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-//           <CheckCircle2 className="w-3 h-3" />
-//           Complete
-//         </div>
-//       )}
-
-//       <CardHeader className="pb-4">
-//         <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-//           <Target className="w-5 h-5" style={{ color: goal.colour }} />
-//           {goal.name}
-//         </CardTitle>
-//       </CardHeader>
-
-//       <CardContent className="space-y-6">
-//         <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
-//           {goal.description}
-//         </p>
-
-//         {/* Progress section */}
-//         <div className="space-y-3">
-//           <div className="flex justify-between items-center">
-//             <span className="text-2xl font-bold text-gray-900 flex items-center gap-1">
-//               <IndianRupee className="w-5 h-5" />
-//               {goal.currentValue.toLocaleString("en-IN")}
-//             </span>
-//             <span className="text-lg text-gray-500 flex items-center gap-1">
-//               <IndianRupee className="w-4 h-4" />
-//               {goal.targetValue.toLocaleString("en-IN")}
-//             </span>
-//           </div>
-
-//           <div className="space-y-2">
-//             <Progress
-//               value={progress}
-//               className="h-3 bg-gray-200"
-//               style={
-//                 {
-//                   "--progress-foreground": goal.colour,
-//                 } as React.CSSProperties
-//               }
-//             />
-//             <div className="flex justify-between text-xs text-gray-500">
-//               <span>{progress.toFixed(1)}% completed</span>
-//               {!isCompleted && (
-//                 <span>{formatCurrency(remainingAmount)} remaining</span>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Action buttons */}
-//         <div className="flex gap-2 flex-wrap">
-//           {/* Conditional rendering for buttons based on completion status */}
-//           {!isCompleted ? (
-//             <>
-//               {/* Add Amount Dialog */}
-//               <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-//                 <DialogTrigger asChild>
-//                   <Button
-//                     className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-//                     disabled={loading}
-//                   >
-//                     <Plus className="w-4 h-4" />
-//                     Add
-//                   </Button>
-//                 </DialogTrigger>
-//                 <DialogContent>
-//                   <DialogHeader>
-//                     <DialogTitle>Add Amount to Goal</DialogTitle>
-//                     <DialogDescription>
-//                       How much would you like to add to{" "}
-//                       <strong>{goal.name}</strong>?
-//                       {remainingAmount > 0 && (
-//                         <span className="block mt-2 text-sm">
-//                           Maximum amount you can add:{" "}
-//                           {formatCurrency(remainingAmount)}
-//                         </span>
-//                       )}
-//                     </DialogDescription>
-//                   </DialogHeader>
-//                   <div className="py-4">
-//                     <Label htmlFor="add-amount">Amount (INR)</Label>
-//                     <Input
-//                       id="add-amount"
-//                       type="number"
-//                       placeholder="Enter amount"
-//                       value={addAmount}
-//                       onChange={(e) => setAddAmount(e.target.value)}
-//                       min="1"
-//                       max={remainingAmount}
-//                       className="mt-2"
-//                     />
-//                   </div>
-//                   <DialogFooter>
-//                     <Button
-//                       variant="outline"
-//                       onClick={() => setAddDialogOpen(false)}
-//                     >
-//                       Cancel
-//                     </Button>
-//                     <Button
-//                       onClick={handleAdd}
-//                       disabled={
-//                         !addAmount ||
-//                         parseFloat(addAmount) <= 0 ||
-//                         parseFloat(addAmount) > remainingAmount ||
-//                         loading
-//                       }
-//                     >
-//                       Add Amount
-//                     </Button>
-//                   </DialogFooter>
-//                 </DialogContent>
-//               </Dialog>
-
-//               {/* Subtract Amount Dialog */}
-//               <Dialog
-//                 open={subtractDialogOpen}
-//                 onOpenChange={setSubtractDialogOpen}
-//               >
-//                 <DialogTrigger asChild>
-//                   <Button
-//                     variant="outline"
-//                     className="flex items-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
-//                     disabled={goal.currentValue <= 0 || loading}
-//                   >
-//                     <Minus className="w-4 h-4" />
-//                     Subtract
-//                   </Button>
-//                 </DialogTrigger>
-//                 <DialogContent>
-//                   <DialogHeader>
-//                     <DialogTitle>Subtract Amount from Goal</DialogTitle>
-//                     <DialogDescription>
-//                       How much would you like to subtract from{" "}
-//                       <strong>{goal.name}</strong>?
-//                       <span className="block mt-2 text-sm">
-//                         Maximum amount you can subtract:{" "}
-//                         {formatCurrency(goal.currentValue)}
-//                       </span>
-//                     </DialogDescription>
-//                   </DialogHeader>
-//                   <div className="py-4">
-//                     <Label htmlFor="subtract-amount">Amount (INR)</Label>
-//                     <Input
-//                       id="subtract-amount"
-//                       type="number"
-//                       placeholder="Enter amount"
-//                       value={subtractAmount}
-//                       onChange={(e) => setSubtractAmount(e.target.value)}
-//                       min="1"
-//                       max={goal.currentValue}
-//                       className="mt-2"
-//                     />
-//                   </div>
-//                   <DialogFooter>
-//                     <Button
-//                       variant="outline"
-//                       onClick={() => setSubtractDialogOpen(false)}
-//                     >
-//                       Cancel
-//                     </Button>
-//                     <Button
-//                       onClick={handleSubtract}
-//                       disabled={
-//                         !subtractAmount ||
-//                         parseFloat(subtractAmount) <= 0 ||
-//                         parseFloat(subtractAmount) > goal.currentValue ||
-//                         loading
-//                       }
-//                     >
-//                       Subtract Amount
-//                     </Button>
-//                   </DialogFooter>
-//                 </DialogContent>
-//               </Dialog>
-
-//               {/* Complete Goal AlertDialog */}
-//               <AlertDialog>
-//                 <AlertDialogTrigger asChild>
-//                   <Button
-//                     className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-//                     disabled={loading}
-//                   >
-//                     <CheckCircle2 className="w-4 h-4" />
-//                     Complete
-//                   </Button>
-//                 </AlertDialogTrigger>
-//                 <AlertDialogContent>
-//                   <AlertDialogHeader>
-//                     <AlertDialogTitle>🎉 Congratulations!</AlertDialogTitle>
-//                     <AlertDialogDescription>
-//                       You've reached your target for{" "}
-//                       <strong>{goal.name}</strong>! Would you like to mark this
-//                       goal as officially complete?
-//                     </AlertDialogDescription>
-//                   </AlertDialogHeader>
-//                   <AlertDialogFooter>
-//                     <AlertDialogCancel>Not Yet</AlertDialogCancel>
-//                     <AlertDialogAction
-//                       onClick={handleComplete}
-//                       disabled={loading}
-//                     >
-//                       Yes, Mark Complete!
-//                     </AlertDialogAction>
-//                   </AlertDialogFooter>
-//                 </AlertDialogContent>
-//               </AlertDialog>
-//             </>
-//           ) : (
-//             <Label className="">🥳 Congratulations! 🥳</Label>
-//           )}
-
-//           {/* Delete Goal - Always visible */}
-//           <AlertDialog>
-//             <AlertDialogTrigger asChild>
-//               <Button
-//                 variant="destructive"
-//                 className="flex items-center gap-2 ml-auto"
-//                 disabled={loading}
-//               >
-//                 <Trash2 className="w-4 h-4" />
-//                 Delete
-//               </Button>
-//             </AlertDialogTrigger>
-//             <AlertDialogContent>
-//               <AlertDialogHeader>
-//                 <AlertDialogTitle>Delete Goal</AlertDialogTitle>
-//                 <AlertDialogDescription>
-//                   Are you sure you want to delete <strong>{goal.name}</strong>?
-//                   This action cannot be undone and all progress will be lost.
-//                 </AlertDialogDescription>
-//               </AlertDialogHeader>
-//               <AlertDialogFooter>
-//                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-//                 <AlertDialogAction onClick={handleDelete} disabled={loading}>
-//                   Yes, Delete
-//                 </AlertDialogAction>
-//               </AlertDialogFooter>
-//             </AlertDialogContent>
-//           </AlertDialog>
-//         </div>
-//       </CardContent>
-//     </Card>
-//   );
-// }
-
-// import { useState } from "react";
-// // NEW
-// import { updateGoal, deleteGoal, completeGoal } from "./api/goals";
-// import type { Goal } from "./api/goals";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Button } from "@/components/ui/button";
-// import { Progress } from "@/components/ui/progress";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import {
-//   AlertDialog,
-//   AlertDialogAction,
-//   AlertDialogCancel,
-//   AlertDialogContent,
-//   AlertDialogDescription,
-//   AlertDialogFooter,
-//   AlertDialogHeader,
-//   AlertDialogTitle,
-//   AlertDialogTrigger,
-// } from "@/components/ui/alert-dialog";
-// import {
-//   Dialog,
-//   DialogContent,
-//   DialogDescription,
-//   DialogFooter,
-//   DialogHeader,
-//   DialogTitle,
-//   DialogTrigger,
-// } from "@/components/ui/dialog";
-// import {
-//   Plus,
-//   Minus,
-//   Trash2,
-//   CheckCircle2,
-//   Target,
-//   IndianRupee,
-// } from "lucide-react";
-
-// interface GoalCardProps {
-//   goal: Goal;
-//   onGoalUpdated: () => void;
-// }
-
-// export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
-//   const [addAmount, setAddAmount] = useState<string>("");
-//   const [subtractAmount, setSubtractAmount] = useState<string>("");
-//   const [addDialogOpen, setAddDialogOpen] = useState(false);
-//   const [subtractDialogOpen, setSubtractDialogOpen] = useState(false);
-//   const [loading, setLoading] = useState(false);
-
-//   const progress = Math.min((goal.currentValue / goal.targetValue) * 100, 100);
-//   const isCompleted = goal.currentValue >= goal.targetValue;
-//   const remainingAmount = goal.targetValue - goal.currentValue;
-
-//   const handleAdd = async () => {
-//     const amount = parseFloat(addAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow adding more than the remaining target amount
-//     const finalAmount = Math.min(amount, remainingAmount);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue + finalAmount,
-//       });
-//       onGoalUpdated();
-//       setAddAmount("");
-//       setAddDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleSubtract = async () => {
-//     const amount = parseFloat(subtractAmount);
-//     if (isNaN(amount) || amount <= 0) return;
-
-//     // Don't allow going into negative values
-//     const finalAmount = Math.min(amount, goal.currentValue);
-
-//     setLoading(true);
-//     try {
-//       await updateGoal(goal.id!, {
-//         currentValue: goal.currentValue - finalAmount,
-//       });
-//       onGoalUpdated();
-//       setSubtractAmount("");
-//       setSubtractDialogOpen(false);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleDelete = async () => {
-//     setLoading(true);
-//     try {
-//       await deleteGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const handleComplete = async () => {
-//     setLoading(true);
-//     try {
-//       await completeGoal(goal.id!);
-//       onGoalUpdated();
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const formatCurrency = (amount: number) => {
-//     return new Intl.NumberFormat("en-IN", {
-//       style: "currency",
-//       currency: "INR",
-//       maximumFractionDigits: 0,
-//     }).format(amount);
-//   };
-
-//   return (
-//     <Card className="h-[400px] group relative overflow-hidden bg-gradient-to-br from-white via-gray-50/50 to-white border-0 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
-//       {/* Color accent bar */}
-//       <div
-//         className="absolute top-0 left-0 w-full h-1.5"
-//         style={{ backgroundColor: goal.colour }}
-//       />
-
-//       {/* Completion badge */}
-//       {isCompleted && (
-//         <div className="absolute top-4 right-4 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium flex items-center gap-1">
-//           <CheckCircle2 className="w-3 h-3" />
-//           Complete
-//         </div>
-//       )}
-
-//       <CardHeader className="pb-4">
-//         <CardTitle className="text-xl font-bold text-gray-900 flex items-center gap-2">
-//           <Target className="w-5 h-5" style={{ color: goal.colour }} />
-//           {goal.name}
-//         </CardTitle>
-//       </CardHeader>
-
-//       <CardContent className="space-y-6">
-//         <p className="text-sm text-gray-600 leading-relaxed line-clamp-3">
-//           {goal.description}
-//         </p>
-
-//         {/* Progress section */}
-//         <div className="space-y-3">
-//           <div className="flex justify-between items-center">
-//             <span className="text-2xl font-bold text-gray-900 flex items-center gap-1">
-//               <IndianRupee className="w-5 h-5" />
-//               {goal.currentValue.toLocaleString("en-IN")}
-//             </span>
-//             <span className="text-lg text-gray-500 flex items-center gap-1">
-//               <IndianRupee className="w-4 h-4" />
-//               {goal.targetValue.toLocaleString("en-IN")}
-//             </span>
-//           </div>
-
-//           <div className="space-y-2">
-//             <Progress
-//               value={progress}
-//               className="h-3 bg-gray-200"
-//               style={
-//                 {
-//                   "--progress-foreground": goal.colour,
-//                 } as React.CSSProperties
-//               }
-//             />
-//             <div className="flex justify-between text-xs text-gray-500">
-//               <span>{progress.toFixed(1)}% completed</span>
-//               {!isCompleted && (
-//                 <span>{formatCurrency(remainingAmount)} remaining</span>
-//               )}
-//             </div>
-//           </div>
-//         </div>
-
-//         {/* Action buttons: updated layout for two rows of two buttons */}
-//         <div className="space-y-2">
-//           {!isCompleted ? (
-//             <>
-//               {/* Row: Add + Subtract */}
-//               <div className="flex gap-2">
-//                 {/* Add Amount Dialog */}
-//                 <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-//                   <DialogTrigger asChild>
-//                     <Button
-//                       className="flex-1 flex items-center gap-2 bg-green-600 hover:bg-green-700"
-//                       disabled={loading}
-//                     >
-//                       <Plus className="w-4 h-4" />
-//                       Add
-//                     </Button>
-//                   </DialogTrigger>
-//                   <DialogContent>
-//                     <DialogHeader>
-//                       <DialogTitle>Add Amount to Goal</DialogTitle>
-//                       <DialogDescription>
-//                         How much would you like to add to{" "}
-//                         <strong>{goal.name}</strong>?
-//                         {remainingAmount > 0 && (
-//                           <span className="block mt-2 text-sm">
-//                             Maximum amount you can add:{" "}
-//                             {formatCurrency(remainingAmount)}
-//                           </span>
-//                         )}
-//                       </DialogDescription>
-//                     </DialogHeader>
-//                     <div className="py-4">
-//                       <Label htmlFor="add-amount">Amount (INR)</Label>
-//                       <Input
-//                         id="add-amount"
-//                         type="number"
-//                         placeholder="Enter amount"
-//                         value={addAmount}
-//                         onChange={(e) => setAddAmount(e.target.value)}
-//                         min="1"
-//                         max={remainingAmount}
-//                         className="mt-2"
-//                       />
-//                     </div>
-//                     <DialogFooter>
-//                       <Button
-//                         variant="outline"
-//                         onClick={() => setAddDialogOpen(false)}
-//                       >
-//                         Cancel
-//                       </Button>
-//                       <Button
-//                         onClick={handleAdd}
-//                         disabled={
-//                           !addAmount ||
-//                           parseFloat(addAmount) <= 0 ||
-//                           parseFloat(addAmount) > remainingAmount ||
-//                           loading
-//                         }
-//                       >
-//                         Add Amount
-//                       </Button>
-//                     </DialogFooter>
-//                   </DialogContent>
-//                 </Dialog>
-//                 {/* Subtract Amount Dialog */}
-//                 <Dialog
-//                   open={subtractDialogOpen}
-//                   onOpenChange={setSubtractDialogOpen}
-//                 >
-//                   <DialogTrigger asChild>
-//                     <Button
-//                       variant="outline"
-//                       className="flex-1 flex items-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50"
-//                       disabled={goal.currentValue <= 0 || loading}
-//                     >
-//                       <Minus className="w-4 h-4" />
-//                       Subtract
-//                     </Button>
-//                   </DialogTrigger>
-//                   <DialogContent>
-//                     <DialogHeader>
-//                       <DialogTitle>Subtract Amount from Goal</DialogTitle>
-//                       <DialogDescription>
-//                         How much would you like to subtract from{" "}
-//                         <strong>{goal.name}</strong>?
-//                         <span className="block mt-2 text-sm">
-//                           Maximum amount you can subtract:{" "}
-//                           {formatCurrency(goal.currentValue)}
-//                         </span>
-//                       </DialogDescription>
-//                     </DialogHeader>
-//                     <div className="py-4">
-//                       <Label htmlFor="subtract-amount">Amount (INR)</Label>
-//                       <Input
-//                         id="subtract-amount"
-//                         type="number"
-//                         placeholder="Enter amount"
-//                         value={subtractAmount}
-//                         onChange={(e) => setSubtractAmount(e.target.value)}
-//                         min="1"
-//                         max={goal.currentValue}
-//                         className="mt-2"
-//                       />
-//                     </div>
-//                     <DialogFooter>
-//                       <Button
-//                         variant="outline"
-//                         onClick={() => setSubtractDialogOpen(false)}
-//                       >
-//                         Cancel
-//                       </Button>
-//                       <Button
-//                         onClick={handleSubtract}
-//                         disabled={
-//                           !subtractAmount ||
-//                           parseFloat(subtractAmount) <= 0 ||
-//                           parseFloat(subtractAmount) > goal.currentValue ||
-//                           loading
-//                         }
-//                       >
-//                         Subtract Amount
-//                       </Button>
-//                     </DialogFooter>
-//                   </DialogContent>
-//                 </Dialog>
-//               </div>
-//               {/* Row: Complete + Delete */}
-//               <div className="flex gap-2">
-//                 {/* Complete Goal AlertDialog */}
-//                 <AlertDialog>
-//                   <AlertDialogTrigger asChild>
-//                     <Button
-//                       className="flex-1 flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-//                       disabled={loading}
-//                     >
-//                       <CheckCircle2 className="w-4 h-4" />
-//                       Complete
-//                     </Button>
-//                   </AlertDialogTrigger>
-//                   <AlertDialogContent>
-//                     <AlertDialogHeader>
-//                       <AlertDialogTitle>🎉 Congratulations!</AlertDialogTitle>
-//                       <AlertDialogDescription>
-//                         You've reached your target for{" "}
-//                         <strong>{goal.name}</strong>! Would you like to mark
-//                         this goal as officially complete?
-//                       </AlertDialogDescription>
-//                     </AlertDialogHeader>
-//                     <AlertDialogFooter>
-//                       <AlertDialogCancel>Not Yet</AlertDialogCancel>
-//                       <AlertDialogAction
-//                         onClick={handleComplete}
-//                         disabled={loading}
-//                       >
-//                         Yes, Mark Complete!
-//                       </AlertDialogAction>
-//                     </AlertDialogFooter>
-//                   </AlertDialogContent>
-//                 </AlertDialog>
-//                 {/* Delete Goal */}
-//                 <AlertDialog>
-//                   <AlertDialogTrigger asChild>
-//                     <Button
-//                       variant="destructive"
-//                       className="flex-1 flex items-center gap-2"
-//                       disabled={loading}
-//                     >
-//                       <Trash2 className="w-4 h-4" />
-//                       Delete
-//                     </Button>
-//                   </AlertDialogTrigger>
-//                   <AlertDialogContent>
-//                     <AlertDialogHeader>
-//                       <AlertDialogTitle>Delete Goal</AlertDialogTitle>
-//                       <AlertDialogDescription>
-//                         Are you sure you want to delete{" "}
-//                         <strong>{goal.name}</strong>? This action cannot be
-//                         undone and all progress will be lost.
-//                       </AlertDialogDescription>
-//                     </AlertDialogHeader>
-//                     <AlertDialogFooter>
-//                       <AlertDialogCancel>Cancel</AlertDialogCancel>
-//                       <AlertDialogAction
-//                         onClick={handleDelete}
-//                         disabled={loading}
-//                       >
-//                         Yes, Delete
-//                       </AlertDialogAction>
-//                     </AlertDialogFooter>
-//                   </AlertDialogContent>
-//                 </AlertDialog>
-//               </div>
-//             </>
-//           ) : (
-//             <Label className="">🥳 Congratulations! 🥳</Label>
-//           )}
-//         </div>
-//       </CardContent>
-//     </Card>
-//   );
-// }
-
 "use client";
 
 import type React from "react";
-
 import { useState } from "react";
-// NEW
-import { updateGoal, deleteGoal, completeGoal } from "./api/goals";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { deleteGoal, completeGoal, addContribution } from "./api/goals";
 import type { Goal } from "./api/goals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1184,76 +45,71 @@ interface GoalCardProps {
 }
 
 export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
+  const queryClient = useQueryClient();
+
   const [addAmount, setAddAmount] = useState<string>("");
   const [subtractAmount, setSubtractAmount] = useState<string>("");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [subtractDialogOpen, setSubtractDialogOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
 
   const progress = Math.min((goal.currentValue / goal.targetValue) * 100, 100);
   const isCompleted = goal.currentValue >= goal.targetValue;
   const isOfficiallyCompleted = goal.completed;
   const remainingAmount = goal.targetValue - goal.currentValue;
 
-  const handleAdd = async () => {
+  // Unified UI Refresh behavior
+  const onSuccessRefresh = () => {
+    queryClient.invalidateQueries({ queryKey: ["goals"] });
+    onGoalUpdated(); // Kept for prop backward compatibility
+  };
+
+  // Mutation: Ledger Contributions
+  const contributeMutation = useMutation({
+    mutationFn: (payload: { amount: number; type: "deposit" | "withdrawal" }) =>
+      addContribution(goal.id!, payload),
+    onSuccess: () => {
+      setAddAmount("");
+      setSubtractAmount("");
+      setAddDialogOpen(false);
+      setSubtractDialogOpen(false);
+      onSuccessRefresh();
+    },
+  });
+
+  // Mutation: Complete Goal
+  const completeMutation = useMutation({
+    mutationFn: () => completeGoal(goal.id!),
+    onSuccess: onSuccessRefresh,
+  });
+
+  // Mutation: Delete Goal
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteGoal(goal.id!),
+    onSuccess: onSuccessRefresh,
+  });
+
+  // Global loading state for all card actions
+  const isLoading =
+    contributeMutation.isPending ||
+    completeMutation.isPending ||
+    deleteMutation.isPending;
+
+  const handleAdd = () => {
     const amount = Number.parseFloat(addAmount);
     if (isNaN(amount) || amount <= 0) return;
-
-    // Don't allow adding more than the remaining target amount
     const finalAmount = Math.min(amount, remainingAmount);
-
-    setLoading(true);
-    try {
-      await updateGoal(goal.id!, {
-        currentValue: goal.currentValue + finalAmount,
-      });
-      onGoalUpdated();
-      setAddAmount("");
-      setAddDialogOpen(false);
-    } finally {
-      setLoading(false);
-    }
+    contributeMutation.mutate({ amount: finalAmount, type: "deposit" });
   };
 
-  const handleSubtract = async () => {
+  const handleSubtract = () => {
     const amount = Number.parseFloat(subtractAmount);
     if (isNaN(amount) || amount <= 0) return;
-
-    // Don't allow going into negative values
     const finalAmount = Math.min(amount, goal.currentValue);
-
-    setLoading(true);
-    try {
-      await updateGoal(goal.id!, {
-        currentValue: goal.currentValue - finalAmount,
-      });
-      onGoalUpdated();
-      setSubtractAmount("");
-      setSubtractDialogOpen(false);
-    } finally {
-      setLoading(false);
-    }
+    contributeMutation.mutate({ amount: finalAmount, type: "withdrawal" });
   };
 
-  const handleDelete = async () => {
-    setLoading(true);
-    try {
-      await deleteGoal(goal.id!);
-      onGoalUpdated();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleComplete = async () => {
-    setLoading(true);
-    try {
-      await completeGoal(goal.id!);
-      onGoalUpdated();
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handleComplete = () => completeMutation.mutate();
+  const handleDelete = () => deleteMutation.mutate();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -1328,20 +184,19 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
           </div>
         </div>
 
-        {/* Action buttons: updated layout for two rows of two buttons */}
+        {/* Action buttons */}
         <div className="space-y-2">
           {isOfficiallyCompleted ? (
             <div className="space-y-2">
               <div className="text-center py-4 w-full">
                 <Label className="text-lg">🥳 Goal Completed! 🥳</Label>
               </div>
-              {/* Only Delete button available for completed goals */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
                     variant="destructive"
                     className="w-full flex items-center gap-2"
-                    disabled={loading}
+                    disabled={isLoading}
                   >
                     <Trash2 className="w-4 h-4" />
                     Delete Goal
@@ -1360,7 +215,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDelete}
-                      disabled={loading}
+                      disabled={isLoading}
                     >
                       Yes, Delete
                     </AlertDialogAction>
@@ -1370,14 +225,14 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
             </div>
           ) : (
             <>
-              {/* Row: Add + Subtract - disabled if target reached but not officially completed */}
+              {/* Row: Add + Subtract */}
               <div className="flex gap-2">
                 {/* Add Amount Dialog */}
                 <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
                   <DialogTrigger asChild>
                     <Button
                       className="flex-1 flex items-center gap-2 bg-green-600 hover:bg-green-700"
-                      disabled={loading || isCompleted}
+                      disabled={isLoading || isCompleted}
                     >
                       <Plus className="w-4 h-4" />
                       Add
@@ -1423,7 +278,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                           !addAmount ||
                           Number.parseFloat(addAmount) <= 0 ||
                           Number.parseFloat(addAmount) > remainingAmount ||
-                          loading
+                          isLoading
                         }
                       >
                         Add Amount
@@ -1431,6 +286,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                     </DialogFooter>
                   </DialogContent>
                 </Dialog>
+
                 {/* Subtract Amount Dialog */}
                 <Dialog
                   open={subtractDialogOpen}
@@ -1441,7 +297,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                       variant="outline"
                       className="flex-1 flex items-center gap-2 border-orange-200 text-orange-700 hover:bg-orange-50 bg-transparent"
                       disabled={
-                        goal.currentValue <= 0 || loading || isCompleted
+                        goal.currentValue <= 0 || isLoading || isCompleted
                       }
                     >
                       <Minus className="w-4 h-4" />
@@ -1487,7 +343,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                           Number.parseFloat(subtractAmount) <= 0 ||
                           Number.parseFloat(subtractAmount) >
                             goal.currentValue ||
-                          loading
+                          isLoading
                         }
                       >
                         Subtract Amount
@@ -1496,6 +352,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                   </DialogContent>
                 </Dialog>
               </div>
+
               {/* Row: Complete + Delete */}
               <div className="flex gap-2">
                 {/* Complete Goal AlertDialog */}
@@ -1503,7 +360,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                   <AlertDialogTrigger asChild>
                     <Button
                       className="flex-1 flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-                      disabled={loading || !isCompleted}
+                      disabled={isLoading || !isCompleted}
                     >
                       <CheckCircle2 className="w-4 h-4" />
                       Complete
@@ -1523,20 +380,21 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                       <AlertDialogCancel>Not Yet</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleComplete}
-                        disabled={loading}
+                        disabled={isLoading}
                       >
                         Yes, Mark Complete!
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
                 {/* Delete Goal */}
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button
                       variant="destructive"
                       className="flex-1 flex items-center gap-2"
-                      disabled={loading}
+                      disabled={isLoading}
                     >
                       <Trash2 className="w-4 h-4" />
                       Delete
@@ -1555,7 +413,7 @@ export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
                       <AlertDialogCancel>Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleDelete}
-                        disabled={loading}
+                        disabled={isLoading}
                       >
                         Yes, Delete
                       </AlertDialogAction>

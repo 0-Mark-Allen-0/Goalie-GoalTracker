@@ -1,8 +1,6 @@
 // src/pages/Dashboard.tsx
 import { useEffect, useState } from "react";
-// UPDATE - Importing the new API for completing goals
-
-// UPDATE 2 - Including user verification based on JWT
+import { useQuery } from "@tanstack/react-query";
 import { getGoals, getCurrentUser } from "./api/goals";
 import type { Goal } from "./api/goals";
 import { GoalCard } from "./GoalCard";
@@ -30,10 +28,8 @@ import {
   Target,
   Plus,
   TrendingUp,
-  // IndianRupee,
   Search,
   Filter,
-  // Clock,
   BarChart3,
   CheckCircle2,
   AlertCircle,
@@ -41,7 +37,7 @@ import {
   List,
   Calendar,
   Volleyball,
-  History, // NEW
+  History,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -49,60 +45,44 @@ type ViewMode = "grid" | "list";
 type SortOption = "name" | "progress" | "target" | "created" | "remaining";
 type FilterOption = "all" | "active" | "completed" | "near-completion";
 
-// NEW - Fetch User
-// async function fetchUser() {
-//   const res = await fetch("http://localhost:8000/auth/me", {
-//     method: "GET",
-//     credentials: "include",
-//   });
-
-//   if (!res.ok) {
-//     throw new Error("Unauthorized");
-//   }
-//   return res.json();
-// }
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+const EMPTY_GOALS: Goal[] = [];
 
 export function Dashboard() {
-  const [goals, setGoals] = useState<Goal[]>([]);
   const [filteredGoals, setFilteredGoals] = useState<Goal[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortOption>("created");
   const [filterBy, setFilterBy] = useState<FilterOption>("all");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showCreateForm, setShowCreateForm] = useState(false);
-  const [showHistory, setShowHistory] = useState(false); // NEW
+  const [showHistory, setShowHistory] = useState(false);
 
-  // NEW - Send user back to the home page if they try to access without login:
   const navigate = useNavigate();
 
-  const fetchGoals = async () => {
-    setLoading(true);
-    try {
-      const res = await getGoals();
-      setGoals(res.data);
-    } catch (error) {
-      console.error("Failed to fetch goals:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 1. Auth Check (Verifies user is logged in before rendering heavily)
   useEffect(() => {
-    const verifyUserAndFetchGoals = async () => {
+    const verifyUser = async () => {
       try {
-        // await fetchUser();
         await getCurrentUser();
-        fetchGoals();
       } catch (error) {
         console.error("User verification failed:", error);
         navigate("/");
       }
     };
-    verifyUserAndFetchGoals();
+    verifyUser();
   }, [navigate]);
 
+  // 2. TanStack Query fetching the goals!
+  const { data: response, isLoading: loading } = useQuery({
+    queryKey: ["goals"],
+    queryFn: getGoals,
+  });
+
+  // Extract the actual array from the Axios response safely
+  const goals = response?.data || [];
+
+  // 3. Filter and Sort Logic
   useEffect(() => {
     const filterAndSortGoals = (goalsToProcess: Goal[]) => {
       const filtered = goalsToProcess.filter((goal) => {
@@ -172,7 +152,8 @@ export function Dashboard() {
   }, [goals, searchTerm, selectedCategory, sortBy, filterBy, showHistory]);
 
   const handleGoalUpdate = () => {
-    fetchGoals();
+    // TanStack queryClient.invalidateQueries() in the Form/Card will auto-fetch.
+    // We only need to close the form dialog here.
     setShowCreateForm(false);
   };
 
@@ -262,20 +243,6 @@ export function Dashboard() {
                 </div>
               </CardContent>
             </Card>
-
-            {/* <Card className="bg-white/10 backdrop-blur-sm border-white/20 text-white">
-              <CardContent className="p-4 text-center">
-                <Clock className="w-8 h-8 mx-auto mb-2 text-yellow-300" />
-                <div className="text-2xl font-bold">
-                  {showHistory
-                    ? historyStats.totalTarget.toLocaleString("en-IN")
-                    : stats.inProgress}
-                </div>
-                <div className="text-sm text-blue-200">
-                  {showHistory ? "Total Target" : "In Progress"}
-                </div>
-              </CardContent>
-            </Card> */}
 
             <Card className="bg-white/10 backdrop-blur-sm border-white/20 text-white">
               <CardContent className="p-4 text-center">
@@ -595,77 +562,11 @@ export function Dashboard() {
                 key={goal.id}
                 className={viewMode === "list" ? "max-w-none" : ""}
               >
-                <GoalCard goal={goal} onGoalUpdated={fetchGoals} />
+                <GoalCard goal={goal} onGoalUpdated={() => {}} />
               </div>
             ))}
           </div>
         )}
-
-        {/* Quick Stats Footer
-        {filteredGoals.length > 0 && (
-          <div className="mt-12 bg-white rounded-2xl shadow-lg p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-              <BarChart3 className="w-5 h-5" />
-              Quick Statistics
-            </h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-              <div>
-                <div className="text-2xl font-bold text-blue-600">
-                  {new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    maximumFractionDigits: 0,
-                  }).format(
-                    filteredGoals.reduce(
-                      (sum, goal) => sum + goal.currentValue,
-                      0
-                    )
-                  )}
-                </div>
-                <div className="text-sm text-gray-500">Total Saved</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-purple-600">
-                  {new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                    maximumFractionDigits: 0,
-                  }).format(
-                    filteredGoals.reduce(
-                      (sum, goal) => sum + goal.targetValue,
-                      0
-                    )
-                  )}
-                </div>
-                <div className="text-sm text-gray-500">Total Target</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-green-600">
-                  {
-                    filteredGoals.filter(
-                      (goal) => goal.currentValue >= goal.targetValue
-                    ).length
-                  }
-                </div>
-                <div className="text-sm text-gray-500">Completed</div>
-              </div>
-              <div>
-                <div className="text-2xl font-bold text-orange-600">
-                  {Math.round(
-                    (filteredGoals.reduce(
-                      (sum, goal) => sum + goal.currentValue / goal.targetValue,
-                      0
-                    ) /
-                      filteredGoals.length) *
-                      100
-                  )}
-                  %
-                </div>
-                <div className="text-sm text-gray-500">Avg Progress</div>
-              </div>
-            </div>
-          </div>
-        )} */}
       </div>
     </div>
   );

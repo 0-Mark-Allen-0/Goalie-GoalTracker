@@ -144,6 +144,22 @@ async def addContribution(id: str, payload: dict, user=Depends(get_current_user)
     return goalHelper(updated_goal)
 
 
+@router.put("/{id}/complete", response_model=dict)
+async def completeGoal(id: str, user=Depends(get_current_user)):
+    existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})
+    if not existing_goal:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
+    if existing_goal["userId"] != user["sub"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized.")
+
+    await goals_collection.update_one(
+        {"_id": ObjectId(id)}, 
+        {"$set": {"completed": True}}
+    )
+
+    updated_goal = await goals_collection.find_one({"_id": ObjectId(id)})
+    return goalHelper(updated_goal)
+
 @router.delete("/{id}", response_model=dict)
 async def deleteGoal(id: str, user=Depends(get_current_user)):
     existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})

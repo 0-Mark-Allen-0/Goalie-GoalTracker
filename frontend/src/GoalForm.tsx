@@ -1,109 +1,6 @@
-// // src/components/GoalForm.tsx
-// import { useState } from "react";
-// import { createGoal } from "@/api/goals";
-// import type { Goal } from "@/api/goals";
-// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-// import { Input } from "@/components/ui/input";
-// import { Label } from "@/components/ui/label";
-// import { Button } from "@/components/ui/button";
-// interface GoalFormProps {
-//   onGoalCreated: () => void;
-// }
-
-// export function GoalForm({ onGoalCreated }: GoalFormProps) {
-//   const [form, setForm] = useState<Goal>({
-//     name: "",
-//     description: "",
-//     category: "",
-//     colour: "#000000",
-//     targetValue: 0,
-//     currentValue: 0,
-//   });
-
-//   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-//     setForm({ ...form, [e.target.name]: e.target.value });
-//   };
-
-//   const handleSubmit = async (e: React.FormEvent) => {
-//     e.preventDefault();
-//     await createGoal(form);
-//     setForm({
-//       name: "",
-//       description: "",
-//       category: "",
-//       colour: "#000000",
-//       targetValue: 0,
-//       currentValue: 0,
-//     });
-//     onGoalCreated();
-//   };
-
-//   return (
-//     <Card className="w-full max-w-lg mx-auto mt-6">
-//       <CardHeader>
-//         <CardTitle>Create a Goal</CardTitle>
-//       </CardHeader>
-//       <CardContent>
-//         <form onSubmit={handleSubmit} className="space-y-4">
-//           {/* Row 1 - Title */}
-//           <div>
-//             <Label htmlFor="name">Title</Label>
-//             <Input name="name" value={form.name} onChange={handleChange} />
-//           </div>
-
-//           {/* Row 2 - Description */}
-//           <div>
-//             <Label htmlFor="description">Description</Label>
-//             <Input
-//               name="description"
-//               value={form.description}
-//               onChange={handleChange}
-//             />
-//           </div>
-
-//           {/* Row 3 - Category */}
-//           <div>
-//             <Label htmlFor="category">Category</Label>
-//             <Input
-//               name="category"
-//               value={form.category}
-//               onChange={handleChange}
-//             />
-//           </div>
-
-//           {/* Row 4 - Colour + Target */}
-//           <div className="grid grid-cols-2 gap-4">
-//             <div>
-//               <Label htmlFor="colour">Colour</Label>
-//               <Input
-//                 type="color"
-//                 name="colour"
-//                 value={form.colour}
-//                 onChange={handleChange}
-//               />
-//             </div>
-//             <div>
-//               <Label htmlFor="targetValue">Target Amount</Label>
-//               <Input
-//                 type="number"
-//                 name="targetValue"
-//                 value={form.targetValue}
-//                 onChange={handleChange}
-//               />
-//             </div>
-//           </div>
-
-//           <Button type="submit" className="w-full">
-//             Add Goal
-//           </Button>
-//         </form>
-//       </CardContent>
-//     </Card>
-//   );
-// }
-
 // src/components/GoalForm.tsx
 import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createGoal } from "@/api/goals";
 import type { Goal } from "@/api/goals";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -167,6 +64,8 @@ const PRESET_COLORS = [
 ];
 
 export function GoalForm({ onGoalCreated }: GoalFormProps) {
+  const queryClient = useQueryClient();
+
   const [form, setForm] = useState<Goal>({
     name: "",
     description: "",
@@ -175,7 +74,6 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
     targetValue: 0,
     currentValue: 0,
   });
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = (): boolean => {
@@ -208,7 +106,7 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
   };
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value, type } = e.target;
     const newValue = type === "number" ? parseFloat(value) || 0 : value;
@@ -234,17 +132,12 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!validateForm()) {
-      toast.error("Please fix the errors before submitting");
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await createGoal(form);
+  // TanStack Query Mutation Engine
+  const createMutation = useMutation({
+    mutationFn: createGoal,
+    onSuccess: () => {
+      // Instantly refresh the dashboard data
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
       setForm({
         name: "",
         description: "",
@@ -256,16 +149,26 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
       setErrors({});
       onGoalCreated();
       toast.success("🎉 Goal created successfully!");
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    } catch (error) {
+    },
+    onError: () => {
       toast.error("Failed to create goal. Please try again.");
-    } finally {
-      setLoading(false);
+    },
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!validateForm()) {
+      toast.error("Please fix the errors before submitting");
+      return;
     }
+
+    // Fire the mutation
+    createMutation.mutate(form);
   };
 
   const selectedCategory = GOAL_CATEGORIES.find(
-    (cat) => cat.value === form.category
+    (cat) => cat.value === form.category,
   );
 
   return (
@@ -499,14 +402,14 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
           <Button
             type="submit"
             className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
-            disabled={loading}
+            disabled={createMutation.isPending}
             style={{
-              background: loading
+              background: createMutation.isPending
                 ? undefined
                 : `linear-gradient(135deg, ${form.colour}, ${form.colour}dd)`,
             }}
           >
-            {loading ? (
+            {createMutation.isPending ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
                 Creating Goal...
