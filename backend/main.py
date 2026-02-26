@@ -33,16 +33,10 @@ app.include_router(goals_router)
 def read_root():
     return {"message": "Goal Tracker API v2"}
 
+@app.get("/ping", tags=["Health"])
+async def ping_server():
+    return {"status": "awake", "message": "Goalie backend is active!"}
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-#Mongo Connection
-#
-# from pymongo.mongo_client import MongoClient
-# from database import client
-# # Send a ping to confirm a successful connection
-# try:
-#     client.admin.command('ping')
-#     print("Pinged your deployment. You successfully connected to MongoDB!")
-# except Exception as e:
-#     print(e)
