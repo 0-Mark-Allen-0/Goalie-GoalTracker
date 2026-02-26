@@ -1,21 +1,10 @@
-// src/pages/Dashboard.tsx
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getGoals, getCurrentUser } from "./api/goals";
 import type { Goal } from "./api/goals";
 import { GoalCard } from "./GoalCard";
 import { GoalForm } from "./GoalForm";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -27,25 +16,18 @@ import { Input } from "@/components/ui/input";
 import {
   Target,
   Plus,
-  TrendingUp,
   Search,
-  Filter,
   BarChart3,
   CheckCircle2,
   AlertCircle,
-  Grid3X3,
-  List,
-  Calendar,
-  Volleyball,
   History,
+  Wallet,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
-type ViewMode = "grid" | "list";
 type SortOption = "name" | "progress" | "target" | "created" | "remaining";
 type FilterOption = "all" | "active" | "completed" | "near-completion";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const EMPTY_GOALS: Goal[] = [];
 
 export function Dashboard() {
@@ -53,73 +35,40 @@ export function Dashboard() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [sortBy, setSortBy] = useState<SortOption>("created");
-  const [filterBy, setFilterBy] = useState<FilterOption>("all");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
 
   const navigate = useNavigate();
 
-  // 1. Auth Check (Verifies user is logged in before rendering heavily)
   useEffect(() => {
     const verifyUser = async () => {
       try {
         await getCurrentUser();
       } catch (error) {
-        console.error("User verification failed:", error);
         navigate("/");
       }
     };
     verifyUser();
   }, [navigate]);
 
-  // 2. TanStack Query fetching the goals!
   const { data: response, isLoading: loading } = useQuery({
     queryKey: ["goals"],
     queryFn: getGoals,
   });
 
-  // Extract the actual array from the Axios response safely
-  const goals = response?.data || [];
+  const goals = response?.data || EMPTY_GOALS;
 
-  // 3. Filter and Sort Logic
   useEffect(() => {
     const filterAndSortGoals = (goalsToProcess: Goal[]) => {
       const filtered = goalsToProcess.filter((goal) => {
-        // Search filter
         const matchesSearch =
           goal.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
           goal.description.toLowerCase().includes(searchTerm.toLowerCase());
-
-        // Category filter
         const matchesCategory =
           selectedCategory === "all" || goal.category === selectedCategory;
-
-        // Status filter
-        let matchesStatus = true;
-        const progress = (goal.currentValue / goal.targetValue) * 100;
-
-        if (!showHistory) {
-          // Apply active filters only if not in history view
-          switch (filterBy) {
-            case "completed":
-              matchesStatus = progress >= 100;
-              break;
-            case "active":
-              matchesStatus = progress < 100 && progress > 0;
-              break;
-            case "near-completion":
-              matchesStatus = progress >= 80 && progress < 100;
-              break;
-            default:
-              matchesStatus = true;
-          }
-        }
-
-        return matchesSearch && matchesCategory && matchesStatus;
+        return matchesSearch && matchesCategory;
       });
 
-      // Sort goals
       filtered.sort((a, b) => {
         switch (sortBy) {
           case "name":
@@ -135,438 +84,215 @@ export function Dashboard() {
               b.targetValue - b.currentValue - (a.targetValue - a.currentValue)
             );
           default:
-            return 0; // Keep original order for 'created'
+            return 0;
         }
       });
-
       return filtered;
     };
 
     if (showHistory) {
-      const completedGoals = goals.filter((goal) => goal.completed);
-      setFilteredGoals(filterAndSortGoals(completedGoals));
+      setFilteredGoals(filterAndSortGoals(goals.filter((g) => g.completed)));
     } else {
-      const activeGoals = goals.filter((goal) => !goal.completed);
-      setFilteredGoals(filterAndSortGoals(activeGoals));
+      setFilteredGoals(filterAndSortGoals(goals.filter((g) => !g.completed)));
     }
-  }, [goals, searchTerm, selectedCategory, sortBy, filterBy, showHistory]);
+  }, [goals, searchTerm, selectedCategory, sortBy, showHistory]);
 
-  const handleGoalUpdate = () => {
-    // TanStack queryClient.invalidateQueries() in the Form/Card will auto-fetch.
-    // We only need to close the form dialog here.
-    setShowCreateForm(false);
-  };
+  // Unified Statistics
+  const activeGoalsCount = goals.filter((g) => !g.completed).length;
+  const completedGoalsCount = goals.filter((g) => g.completed).length;
+  const totalMoneySpent = goals.reduce((sum, g) => sum + g.currentValue, 0);
 
-  // Calculate statistics
-  const activeGoals = goals.filter((goal) => !goal.completed);
-  const completedGoals = goals.filter((goal) => goal.completed);
-
-  const stats = {
-    total: activeGoals.length,
-    completed: activeGoals.filter(
-      (goal) => goal.currentValue >= goal.targetValue,
-    ).length,
-    inProgress: activeGoals.filter(
-      (goal) => goal.currentValue > 0 && goal.currentValue < goal.targetValue,
-    ).length,
-    totalTarget: activeGoals.reduce((sum, goal) => sum + goal.targetValue, 0),
-    totalSaved: activeGoals.reduce((sum, goal) => sum + goal.currentValue, 0),
-  };
-
-  const historyStats = {
-    total: completedGoals.length,
-    totalTarget: completedGoals.reduce(
-      (sum, goal) => sum + goal.targetValue,
-      0,
-    ),
-    totalSaved: completedGoals.reduce(
-      (sum, goal) => sum + goal.currentValue,
-      0,
-    ),
-  };
-
-  const categories = [
-    ...new Set(goals.map((goal) => goal.category).filter(Boolean)),
-  ];
+  const categories = [...new Set(goals.map((g) => g.category).filter(Boolean))];
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4" />
-          <p className="text-gray-600">Loading your goals...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#F1F0E8]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#89A8B2]" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      {/* Header Section */}
-      <div className="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 text-white">
-        <div className="container mx-auto px-6 py-12">
-          <div className="text-center mb-8">
-            <h1 className="text-4xl md:text-5xl font-bold mb-4 flex items-center justify-center gap-3">
-              <Volleyball className="w-10 h-10 text-yellow-300" />
-              Goalie! <Volleyball className="w-10 h-10 text-yellow-300" />
+    <div className="min-h-screen pb-12 bg-[#F1F0E8]">
+      {/* Soft Header Section */}
+      <div className="bg-[#E5E1DA] pt-12 pb-24 relative overflow-hidden rounded-b-[48px] shadow-sm">
+        <div className="absolute top-0 right-0 w-[400px] h-[400px] bg-[#B3C8CF]/40 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
+        <div className="container mx-auto px-6 relative z-10">
+          <div className="text-center mb-10">
+            <h1 className="text-4xl md:text-5xl font-extrabold text-[#2c3e50] tracking-tight mb-4 flex items-center justify-center gap-3">
+              <Wallet className="w-10 h-10 text-[#89A8B2]" /> Goalie
             </h1>
-            <p className="text-xl text-blue-100 max-w-2xl mx-auto">
-              Track your savings, achieve your dreams, and celebrate your
-              financial milestones
+            <p className="text-[#546e7a] text-lg font-medium max-w-2xl mx-auto">
+              Your beautifully organized financial ledger.
             </p>
           </div>
 
-          {/* Statistics Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
-            <Card className="bg-white/10 backdrop-blur-sm border-white/20 text-white">
-              <CardContent className="p-4 text-center">
-                <Target className="w-8 h-8 mx-auto mb-2 text-blue-200" />
-                <div className="text-2xl font-bold">
-                  {showHistory ? historyStats.total : stats.total}
-                </div>
-                <div className="text-sm text-blue-200">
-                  {showHistory ? "Completed" : "Active Goals"}
-                </div>
-              </CardContent>
-            </Card>
+          {/* Liquid Glass Stats Cards - Unified */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
+            <div className="glass-card p-6 flex flex-col items-center text-center">
+              <Target className="w-8 h-8 mb-3 text-[#89A8B2]" />
+              <div className="text-3xl font-extrabold text-[#2c3e50]">
+                {activeGoalsCount}
+              </div>
+              <div className="text-[#546e7a] font-medium mt-1">
+                Active Goals
+              </div>
+            </div>
 
-            <Card className="bg-white/10 backdrop-blur-sm border-white/20 text-white">
-              <CardContent className="p-4 text-center">
-                <CheckCircle2 className="w-8 h-8 mx-auto mb-2 text-green-300" />
-                <div className="text-2xl font-bold">
-                  {showHistory
-                    ? `₹${historyStats.totalTarget.toLocaleString("en-IN")}`
-                    : historyStats.total}
-                </div>
-                <div className="text-sm text-blue-200">
-                  {showHistory ? "Achieved Targets" : "Completed"}
-                </div>
-              </CardContent>
-            </Card>
+            <div className="glass-card p-6 flex flex-col items-center text-center">
+              <CheckCircle2 className="w-8 h-8 mb-3 text-[#B3C8CF]" />
+              <div className="text-3xl font-extrabold text-[#2c3e50]">
+                {completedGoalsCount}
+              </div>
+              <div className="text-[#546e7a] font-medium mt-1">Completed</div>
+            </div>
 
-            <Card className="bg-white/10 backdrop-blur-sm border-white/20 text-white">
-              <CardContent className="p-4 text-center">
-                <TrendingUp className="w-8 h-8 mx-auto mb-2 text-purple-300" />
-                <div className="text-2xl font-bold">
-                  {showHistory
-                    ? Math.round(
-                        (historyStats.totalSaved / historyStats.totalTarget) *
-                          100,
-                      )
-                    : stats.totalTarget > 0
-                      ? Math.round((stats.totalSaved / stats.totalTarget) * 100)
-                      : 0}
-                  %
-                </div>
-                <div className="text-sm text-blue-200">
-                  {showHistory ? "Average Success" : "Overall Progress"}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Financial Summary */}
-          <div className="mt-6 text-center">
-            <p className="text-blue-100 mb-2">
-              ₹
-              {showHistory
-                ? historyStats.totalSaved.toLocaleString("en-IN")
-                : stats.totalSaved.toLocaleString("en-IN")}{" "}
-              saved of ₹
-              {showHistory
-                ? historyStats.totalTarget.toLocaleString("en-IN")
-                : stats.totalTarget.toLocaleString("en-IN")}{" "}
-              target
-            </p>
-            <div className="w-full max-w-md mx-auto bg-white/20 rounded-full h-2">
-              <div
-                className="bg-gradient-to-r from-yellow-300 to-green-300 h-2 rounded-full transition-all duration-1000"
-                style={{
-                  width: `${
-                    (showHistory
-                      ? historyStats.totalTarget
-                      : stats.totalTarget) > 0
-                      ? ((showHistory
-                          ? historyStats.totalSaved
-                          : stats.totalSaved) /
-                          (showHistory
-                            ? historyStats.totalTarget
-                            : stats.totalTarget)) *
-                        100
-                      : 0
-                  }%`,
-                }}
-              />
+            <div className="glass-card p-6 flex flex-col items-center text-center">
+              <Wallet className="w-8 h-8 mb-3 text-[#89A8B2]" />
+              <div className="text-3xl font-extrabold text-[#2c3e50]">
+                ₹{totalMoneySpent.toLocaleString("en-IN")}
+              </div>
+              <div className="text-[#546e7a] font-medium mt-1">Money Spent</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Main Content */}
-      <div className="container mx-auto px-6 py-8">
-        {/* Controls Section */}
-        <div className="bg-white rounded-2xl shadow-lg p-6 mb-8">
-          <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
-            {/* Left side - Search and Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 flex-1">
-              {/* Search */}
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <Input
-                  placeholder="Search goals..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-
-              {/* Category Filter */}
-              <Select
-                value={selectedCategory}
-                onValueChange={setSelectedCategory}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="All Categories" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Categories</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category} value={category}>
-                      {category.charAt(0).toUpperCase() + category.slice(1)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              {/* Status Filter */}
-              {!showHistory && (
-                <Select
-                  value={filterBy}
-                  onValueChange={(value: FilterOption) => setFilterBy(value)}
-                >
-                  <SelectTrigger className="w-[160px]">
-                    <Filter className="w-4 h-4 mr-2" />
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Goals</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="near-completion">
-                      Near Complete
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
+      {/* Main Content Area */}
+      <div className="container mx-auto px-6 -mt-12 relative z-20">
+        {/* MD3 Controls Panel */}
+        <div className="glass-card p-4 md:p-6 mb-8 flex flex-col lg:flex-row gap-4 justify-between items-center bg-white/70">
+          <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+            {/* Search */}
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-4 h-4 text-[#89A8B2]" />
+              <Input
+                placeholder="Search goals..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-11 rounded-2xl bg-white/80 border-white/60 shadow-sm h-12 text-[#2c3e50] font-medium placeholder:text-[#89A8B2] focus-visible:ring-[#89A8B2] transition-all"
+              />
             </div>
 
-            {/* Right side - Sort, View Mode, and Create/History Buttons */}
-            <div className="flex gap-3">
-              {/* Sort */}
-              <Select
-                value={sortBy}
-                onValueChange={(value: SortOption) => setSortBy(value)}
-              >
-                <SelectTrigger className="w-[140px]">
-                  <BarChart3 className="w-4 h-4 mr-2" />
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="created">Date Created</SelectItem>
-                  <SelectItem value="name">Name</SelectItem>
-                  <SelectItem value="progress">Progress</SelectItem>
-                  <SelectItem value="target">Target Amount</SelectItem>
-                  <SelectItem value="remaining">Remaining</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* View Mode Toggle */}
-              <div className="flex bg-gray-100 rounded-lg p-1">
-                <Button
-                  variant={viewMode === "grid" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("grid")}
-                  className="h-8 w-8 p-0"
+            {/* Styled ShadCN Select for Category */}
+            <Select
+              value={selectedCategory}
+              onValueChange={setSelectedCategory}
+            >
+              <SelectTrigger className="w-full sm:w-[180px] rounded-2xl bg-white/80 h-12 border-white/60 shadow-sm text-[#2c3e50] font-bold focus:ring-[#89A8B2] transition-all">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl bg-[#F1F0E8]/95 backdrop-blur-xl border-white/60 shadow-xl overflow-hidden p-1">
+                <SelectItem
+                  value="all"
+                  className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
                 >
-                  <Grid3X3 className="w-4 h-4" />
-                </Button>
-                <Button
-                  variant={viewMode === "list" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setViewMode("list")}
-                  className="h-8 w-8 p-0"
-                >
-                  <List className="w-4 h-4" />
-                </Button>
-              </div>
-
-              {/* NEW - History Toggle Button */}
-              <Button
-                variant={showHistory ? "default" : "outline"}
-                className="flex items-center gap-2"
-                onClick={() => setShowHistory(!showHistory)}
-              >
-                <History className="w-4 h-4" />
-                {showHistory ? "Active Goals" : "View History"}
-              </Button>
-
-              {/* Create Goal Button */}
-              <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
-                <DialogTrigger asChild>
-                  <Button
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                    disabled={showHistory}
+                  All Categories
+                </SelectItem>
+                {categories.map((c) => (
+                  <SelectItem
+                    key={c}
+                    value={c}
+                    className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
                   >
-                    <Plus className="w-4 h-4 mr-2" />
-                    New Goal
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Create a New Goal</DialogTitle>
-                    <DialogDescription>
-                      Set up a new financial milestone to track your savings
-                      progress
-                    </DialogDescription>
-                  </DialogHeader>
-                  <GoalForm onGoalCreated={handleGoalUpdate} />
-                </DialogContent>
-              </Dialog>
-            </div>
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          {/* Active Filters Display */}
-          {(searchTerm ||
-            selectedCategory !== "all" ||
-            (!showHistory && filterBy !== "all")) && (
-            <div className="flex gap-2 mt-4 flex-wrap">
-              <span className="text-sm text-gray-500">Active filters:</span>
-              {searchTerm && (
-                <Badge variant="secondary" className="gap-1">
-                  Search: {searchTerm}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-4 w-4 p-0 hover:bg-gray-200"
-                    onClick={() => setSearchTerm("")}
-                  >
-                    ×
-                  </Button>
-                </Badge>
-              )}
-              {selectedCategory !== "all" && (
-                <Badge variant="secondary" className="gap-1">
-                  Category: {selectedCategory}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-4 w-4 p-0 hover:bg-gray-200"
-                    onClick={() => setSelectedCategory("all")}
-                  >
-                    ×
-                  </Button>
-                </Badge>
-              )}
-              {!showHistory && filterBy !== "all" && (
-                <Badge variant="secondary" className="gap-1">
-                  Status: {filterBy.replace("-", " ")}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-4 w-4 p-0 hover:bg-gray-200"
-                    onClick={() => setFilterBy("all")}
-                  >
-                    ×
-                  </Button>
-                </Badge>
-              )}
+          <div className="flex flex-wrap gap-3 w-full lg:w-auto justify-end">
+            {/* Styled ShadCN Select for Sort */}
+            <Select
+              value={sortBy}
+              onValueChange={(v: SortOption) => setSortBy(v)}
+            >
+              <SelectTrigger className="w-[150px] rounded-2xl bg-white/80 h-12 border-white/60 shadow-sm text-[#2c3e50] font-bold focus:ring-[#89A8B2] transition-all">
+                <BarChart3 className="w-4 h-4 mr-2 text-[#89A8B2]" />
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl bg-[#F1F0E8]/95 backdrop-blur-xl border-white/60 shadow-xl overflow-hidden p-1">
+                <SelectItem
+                  value="created"
+                  className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
+                >
+                  Date Created
+                </SelectItem>
+                <SelectItem
+                  value="name"
+                  className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
+                >
+                  Name
+                </SelectItem>
+                <SelectItem
+                  value="progress"
+                  className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
+                >
+                  Progress
+                </SelectItem>
+                <SelectItem
+                  value="remaining"
+                  className="rounded-xl font-medium focus:bg-[#E5E1DA] focus:text-[#2c3e50] cursor-pointer transition-colors"
+                >
+                  Remaining
+                </SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* View History Toggle */}
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`h-12 rounded-full px-6 flex items-center justify-center gap-2 font-semibold transition-all duration-200 shadow-sm ${
+                showHistory
+                  ? "bg-[#89A8B2] text-white shadow-md hover:bg-[#7a96a0]"
+                  : "bg-white/80 text-[#546e7a] border border-white/60 hover:bg-white"
+              }`}
+            >
+              <History className="w-4 h-4" />{" "}
+              {showHistory ? "Active Goals" : "View History"}
+            </button>
+
+            {/* Create Goal Dialog */}
+            <Dialog open={showCreateForm} onOpenChange={setShowCreateForm}>
+              <DialogTrigger asChild>
+                <button
+                  disabled={showHistory}
+                  className="btn-primary h-12 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Plus className="w-4 h-4" /> New Goal
+                </button>
+              </DialogTrigger>
+              <DialogContent className="[&>button]:hidden max-w-4xl max-h-[90vh] overflow-y-auto rounded-[32px] p-0 border-0 bg-transparent shadow-none">
+                <GoalForm onGoalCreated={() => setShowCreateForm(false)} />
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+
+        {/* Goals Grid - Wrapped in an animated div keyed by showHistory for smooth transitions */}
+        <div
+          key={showHistory ? "history" : "active"}
+          className="animate-in fade-in slide-in-from-bottom-8 duration-500 ease-out fill-mode-both"
+        >
+          {filteredGoals.length === 0 ? (
+            <div className="text-center py-20 glass-card bg-white/50">
+              <AlertCircle className="w-16 h-16 text-[#B3C8CF] mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-[#2c3e50] mb-2">
+                No goals found
+              </h3>
+              <p className="text-[#546e7a] font-medium">
+                Create a new goal or adjust your filters.
+              </p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-8">
+              {filteredGoals.map((goal) => (
+                <GoalCard key={goal.id} goal={goal} onGoalUpdated={() => {}} />
+              ))}
             </div>
           )}
         </div>
-
-        {/* Results Summary */}
-        <div className="mb-6 flex justify-between items-center">
-          <div className="text-gray-600">
-            {filteredGoals.length === goals.length ? (
-              <span>Showing all {goals.length} goals</span>
-            ) : (
-              <span>
-                Showing {filteredGoals.length} of {goals.length} goals
-              </span>
-            )}
-          </div>
-          {filteredGoals.length > 0 && (
-            <div className="text-sm text-gray-500 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Sorted by {sortBy.replace("-", " ")}
-            </div>
-          )}
-        </div>
-
-        {/* Goals Display */}
-        {filteredGoals.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="max-w-md mx-auto">
-              {goals.length === 0 ? (
-                <>
-                  <Target className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No goals yet
-                  </h3>
-                  <p className="text-gray-500 mb-6">
-                    Start your financial journey by creating your first savings
-                    goal!
-                  </p>
-                  <Button
-                    onClick={() => setShowCreateForm(true)}
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Create Your First Goal
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <AlertCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                    No matching goals
-                  </h3>
-                  <p className="text-gray-500 mb-6">
-                    Try adjusting your search terms or filters to find your
-                    goals.
-                  </p>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setSearchTerm("");
-                      setSelectedCategory("all");
-                      setFilterBy("all");
-                    }}
-                  >
-                    Clear All Filters
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
-        ) : (
-          <div
-            className={`${
-              viewMode === "grid"
-                ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-                : "space-y-4"
-            }`}
-          >
-            {filteredGoals.map((goal) => (
-              <div
-                key={goal.id}
-                className={viewMode === "list" ? "max-w-none" : ""}
-              >
-                <GoalCard goal={goal} onGoalUpdated={() => {}} />
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );

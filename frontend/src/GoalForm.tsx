@@ -1,12 +1,9 @@
-// src/components/GoalForm.tsx
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createGoal } from "@/api/goals";
+import { createGoal, updateGoal } from "@/api/goals";
 import type { Goal } from "@/api/goals";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
@@ -20,86 +17,85 @@ import {
   Palette,
   IndianRupee,
   Plus,
-  Sparkles,
   Tag,
   FileText,
   CheckCircle,
+  X,
+  Save,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface GoalFormProps {
-  onGoalCreated: () => void;
+  onGoalCreated: () => void; // Used for both creation and updates
+  onCancel?: () => void;
+  initialData?: Goal; // <-- NEW: Allows form to be used for editing
 }
 
 const GOAL_CATEGORIES = [
-  { value: "electronics", label: "📱 Electronics", color: "#3b82f6" },
-  { value: "travel", label: "✈️ Travel", color: "#10b981" },
-  { value: "fashion", label: "👕 Fashion", color: "#f59e0b" },
-  { value: "home", label: "🏠 Home & Garden", color: "#8b5cf6" },
-  { value: "health", label: "🏥 Health & Fitness", color: "#ef4444" },
-  { value: "education", label: "📚 Education", color: "#06b6d4" },
-  { value: "vehicle", label: "🚗 Vehicle", color: "#84cc16" },
-  { value: "investment", label: "📈 Investment", color: "#f97316" },
-  { value: "other", label: "🎯 Other", color: "#6b7280" },
+  { value: "electronics", label: "📱 Electronics" },
+  { value: "travel", label: "✈️ Travel" },
+  { value: "fashion", label: "👕 Fashion" },
+  { value: "home", label: "🏠 Home & Garden" },
+  { value: "health", label: "🏥 Health & Fitness" },
+  { value: "education", label: "📚 Education" },
+  { value: "vehicle", label: "🚗 Vehicle" },
+  { value: "investment", label: "📈 Investment" },
+  { value: "other", label: "🎯 Other" },
 ];
 
 const PRESET_COLORS = [
-  "#ef4444",
-  "#f97316",
-  "#f59e0b",
-  "#eab308",
-  "#84cc16",
-  "#22c55e",
-  "#10b981",
-  "#14b8a6",
-  "#06b6d4",
-  "#0ea5e9",
-  "#3b82f6",
-  "#6366f1",
-  "#8b5cf6",
-  "#a855f7",
-  "#d946ef",
-  "#ec4899",
-  "#f43f5e",
+  "#FFB3BA",
+  "#FFDFBA",
+  "#FFFFBA",
+  "#BAFFC9",
+  "#BAE1FF",
+  "#D0CAFA",
+  "#F3E7E9",
+  "#A2E1DB",
+  "#E2F0CB",
+  "#CBAACB",
+  "#FFC3A0",
+  "#FFF3B0",
+  "#FAD0C4",
+  "#D4F0F0",
+  "#C1E1C1",
 ];
 
-export function GoalForm({ onGoalCreated }: GoalFormProps) {
+export function GoalForm({
+  onGoalCreated,
+  onCancel,
+  initialData,
+}: GoalFormProps) {
   const queryClient = useQueryClient();
+  const isEditing = !!initialData;
 
-  const [form, setForm] = useState<Goal>({
-    name: "",
-    description: "",
-    category: "",
-    colour: "#3b82f6",
-    targetValue: 0,
-    currentValue: 0,
-  });
+  // Initialize state with existing data if editing, otherwise default
+  const [form, setForm] = useState<Goal>(
+    initialData || {
+      name: "",
+      description: "",
+      category: "",
+      colour: "#BAE1FF",
+      targetValue: 0,
+      currentValue: 0,
+    },
+  );
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-
-    if (!form.name.trim()) {
-      newErrors.name = "Goal name is required";
-    } else if (form.name.length < 3) {
+    if (!form.name.trim()) newErrors.name = "Goal name is required";
+    else if (form.name.length < 3)
       newErrors.name = "Goal name must be at least 3 characters";
-    }
-
-    if (!form.description.trim()) {
+    if (!form.description.trim())
       newErrors.description = "Description is required";
-    } else if (form.description.length < 10) {
+    else if (form.description.length < 10)
       newErrors.description = "Description must be at least 10 characters";
-    }
-
-    if (!form.category) {
-      newErrors.category = "Please select a category";
-    }
-
-    if (!form.targetValue || form.targetValue <= 0) {
+    if (!form.category) newErrors.category = "Please select a category";
+    if (!form.targetValue || form.targetValue <= 0)
       newErrors.targetValue = "Target amount must be greater than 0";
-    } else if (form.targetValue < 100) {
+    else if (form.targetValue < 100)
       newErrors.targetValue = "Target amount must be at least ₹100";
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -110,61 +106,51 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
   ) => {
     const { name, value, type } = e.target;
     const newValue = type === "number" ? parseFloat(value) || 0 : value;
-
     setForm({ ...form, [name]: newValue });
-
-    // Clear error for this field when user starts typing
-    if (errors[name]) {
-      setErrors({ ...errors, [name]: "" });
-    }
+    if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
   const handleCategoryChange = (value: string) => {
     setForm({ ...form, category: value });
-    if (errors.category) {
-      setErrors({ ...errors, category: "" });
-    }
-
-    // Auto-set color based on category
-    const categoryData = GOAL_CATEGORIES.find((cat) => cat.value === value);
-    if (categoryData) {
-      setForm((prev) => ({ ...prev, colour: categoryData.color }));
-    }
+    if (errors.category) setErrors({ ...errors, category: "" });
   };
 
-  // TanStack Query Mutation Engine
+  // Creation Mutation
   const createMutation = useMutation({
     mutationFn: createGoal,
     onSuccess: () => {
-      // Instantly refresh the dashboard data
       queryClient.invalidateQueries({ queryKey: ["goals"] });
-      setForm({
-        name: "",
-        description: "",
-        category: "",
-        colour: "#3b82f6",
-        targetValue: 0,
-        currentValue: 0,
-      });
-      setErrors({});
       onGoalCreated();
       toast.success("🎉 Goal created successfully!");
     },
-    onError: () => {
-      toast.error("Failed to create goal. Please try again.");
-    },
+    onError: () => toast.error("Failed to create goal. Please try again."),
   });
+
+  // Update Mutation
+  const updateMutation = useMutation({
+    mutationFn: (updatedGoal: Goal) =>
+      updateGoal(initialData!.id!, updatedGoal),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      onGoalCreated();
+      toast.success("✨ Goal updated successfully!");
+    },
+    onError: () => toast.error("Failed to update goal. Please try again."),
+  });
+
+  const isLoading = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
     if (!validateForm()) {
       toast.error("Please fix the errors before submitting");
       return;
     }
-
-    // Fire the mutation
-    createMutation.mutate(form);
+    if (isEditing) {
+      updateMutation.mutate(form);
+    } else {
+      createMutation.mutate(form);
+    }
   };
 
   const selectedCategory = GOAL_CATEGORIES.find(
@@ -172,165 +158,131 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
   );
 
   return (
-    <Card className="w-full max-w-2xl mx-auto shadow-xl bg-gradient-to-br from-white via-gray-50/50 to-white border-0 overflow-hidden">
-      {/* Header with gradient */}
+    <div className="w-full max-w-2xl mx-auto rounded-[32px] overflow-hidden flex flex-col bg-[#F1F0E8] shadow-2xl relative">
+      {onCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="absolute top-5 right-5 w-9 h-9 z-50 flex items-center justify-center rounded-full bg-white/40 backdrop-blur-md border border-white/60 shadow-sm text-[#546e7a] hover:bg-white/70 hover:text-[#2c3e50] transition-all duration-200 hover:scale-105 active:scale-95"
+          aria-label="Close"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      )}
+
+      <style>
+        {`
+          .dynamic-scroll::-webkit-scrollbar { width: 8px; }
+          .dynamic-scroll::-webkit-scrollbar-track { background: transparent; }
+          .dynamic-scroll::-webkit-scrollbar-thumb { background-color: ${form.colour}80; border-radius: 9999px; transition: background-color 0.3s ease; }
+          .dynamic-scroll::-webkit-scrollbar-thumb:hover { background-color: ${form.colour}; }
+        `}
+      </style>
+
       <div
-        className="h-2 w-full"
-        style={{
-          background: `linear-gradient(90deg, ${form.colour}40, ${form.colour}, ${form.colour}40)`,
-        }}
+        className="h-2 w-full shrink-0 transition-colors duration-300"
+        style={{ backgroundColor: form.colour }}
       />
 
-      <CardHeader className="pb-6 bg-gradient-to-r from-gray-50/50 to-white">
-        <CardTitle className="text-2xl font-bold text-gray-900 flex items-center gap-3">
-          <div
-            className="p-2 rounded-xl shadow-sm"
-            style={{ backgroundColor: `${form.colour}20` }}
-          >
-            <Target className="w-6 h-6" style={{ color: form.colour }} />
-          </div>
-          Create New Goal
-          <Sparkles className="w-5 h-5 text-yellow-500" />
-        </CardTitle>
-        <p className="text-gray-600 mt-2">
-          Set up your financial milestone and start tracking your progress
-        </p>
-      </CardHeader>
+      <div className="dynamic-scroll p-8 space-y-8 overflow-y-auto max-h-[85vh] pr-6">
+        <div className="pb-2">
+          <h2 className="text-3xl font-extrabold text-[#2c3e50] flex items-center gap-3 pr-12">
+            <div className="p-3 rounded-2xl shadow-sm border border-white/60 bg-white/50 transition-colors duration-300">
+              <Target className="w-7 h-7" style={{ color: form.colour }} />
+            </div>
+            {isEditing ? "Edit Goal" : "Create New Goal"}
+          </h2>
+        </div>
 
-      <CardContent className="p-8 space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Goal Name */}
           <div className="space-y-2">
             <Label
               htmlFor="name"
-              className="text-base font-semibold flex items-center gap-2"
+              className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2"
             >
-              <FileText className="w-4 h-4" />
-              Goal Name
+              <FileText className="w-4 h-4" /> Goal Name
             </Label>
             <Input
               id="name"
               name="name"
               value={form.name}
               onChange={handleChange}
-              placeholder="e.g., New iPhone 15 Pro, Dream Vacation to Japan"
-              className={`h-12 text-base ${
-                errors.name ? "border-red-500 focus-visible:ring-red-500" : ""
-              }`}
+              placeholder="e.g., Dream Vacation to Japan"
+              className={`h-14 rounded-2xl text-base bg-white border-white/60 shadow-sm px-4 transition-all focus-visible:ring-[#89A8B2] ${errors.name ? "border-[#BF4646] focus-visible:ring-[#BF4646]" : ""}`}
             />
             {errors.name && (
-              <p className="text-sm text-red-600">{errors.name}</p>
+              <p className="text-sm text-[#BF4646] font-medium">
+                {errors.name}
+              </p>
             )}
           </div>
 
-          {/* Description */}
           <div className="space-y-2">
             <Label
               htmlFor="description"
-              className="text-base font-semibold flex items-center gap-2"
+              className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2"
             >
-              <FileText className="w-4 h-4" />
-              Description
+              <FileText className="w-4 h-4" /> Description
             </Label>
             <Textarea
               id="description"
               name="description"
               value={form.description}
               onChange={handleChange}
-              placeholder="Describe why this goal is important to you and what achieving it will mean... or just include a product link!"
-              className={`min-h-[100px] text-base resize-none ${
-                errors.description
-                  ? "border-red-500 focus-visible:ring-red-500"
-                  : ""
-              }`}
+              placeholder="Describe why this goal is important to you..."
+              className={`min-h-[120px] rounded-2xl text-base resize-none bg-white border-white/60 shadow-sm p-4 transition-all focus-visible:ring-[#89A8B2] ${errors.description ? "border-[#BF4646] focus-visible:ring-[#BF4646]" : ""}`}
             />
             {errors.description && (
-              <p className="text-sm text-red-600">{errors.description}</p>
+              <p className="text-sm text-[#BF4646] font-medium">
+                {errors.description}
+              </p>
             )}
           </div>
 
-          {/* Category */}
-          <div className="space-y-2">
-            <Label className="text-base font-semibold flex items-center gap-2">
-              <Tag className="w-4 h-4" />
-              Category
-            </Label>
-            <Select value={form.category} onValueChange={handleCategoryChange}>
-              <SelectTrigger
-                className={`h-12 text-base ${
-                  errors.category ? "border-red-500" : ""
-                }`}
-              >
-                <SelectValue placeholder="Choose a category for your goal" />
-              </SelectTrigger>
-              <SelectContent>
-                {GOAL_CATEGORIES.map((category) => (
-                  <SelectItem
-                    key={category.value}
-                    value={category.value}
-                    className="text-base py-3"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: category.color }}
-                      />
-                      {category.label}
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {errors.category && (
-              <p className="text-sm text-red-600">{errors.category}</p>
-            )}
-          </div>
-
-          {/* Color and Target Amount Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Color Picker */}
             <div className="space-y-2">
-              <Label className="text-base font-semibold flex items-center gap-2">
-                <Palette className="w-4 h-4" />
-                Theme Color
+              <Label className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2">
+                <Tag className="w-4 h-4" /> Category
               </Label>
-              <div className="space-y-3">
-                <div className="flex gap-2 flex-wrap">
-                  {PRESET_COLORS.map((color) => (
-                    <button
-                      key={color}
-                      type="button"
-                      onClick={() => setForm({ ...form, colour: color })}
-                      className={`w-8 h-8 rounded-full border-2 transition-all hover:scale-110 ${
-                        form.colour === color
-                          ? "border-gray-800 ring-2 ring-gray-300"
-                          : "border-white"
-                      }`}
-                      style={{ backgroundColor: color }}
-                    />
+              <Select
+                value={form.category}
+                onValueChange={handleCategoryChange}
+              >
+                <SelectTrigger
+                  className={`h-14 rounded-2xl text-base bg-white border-white/60 shadow-sm px-4 transition-all focus-visible:ring-[#89A8B2] ${errors.category ? "border-[#BF4646]" : ""}`}
+                >
+                  <SelectValue placeholder="Choose a category" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-white/60 bg-white shadow-xl">
+                  {GOAL_CATEGORIES.map((category) => (
+                    <SelectItem
+                      key={category.value}
+                      value={category.value}
+                      className="text-base py-3 cursor-pointer hover:bg-gray-50"
+                    >
+                      <div className="flex items-center gap-2">
+                        {category.label}
+                      </div>
+                    </SelectItem>
                   ))}
-                </div>
-                <Input
-                  type="color"
-                  name="colour"
-                  value={form.colour}
-                  onChange={handleChange}
-                  className="h-12 w-full cursor-pointer"
-                />
-              </div>
+                </SelectContent>
+              </Select>
+              {errors.category && (
+                <p className="text-sm text-[#BF4646] font-medium">
+                  {errors.category}
+                </p>
+              )}
             </div>
 
-            {/* Target Amount */}
             <div className="space-y-2">
               <Label
                 htmlFor="targetValue"
-                className="text-base font-semibold flex items-center gap-2"
+                className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2"
               >
-                <IndianRupee className="w-4 h-4" />
-                Target Amount
+                <IndianRupee className="w-4 h-4" /> Target Amount
               </Label>
               <div className="relative">
-                <IndianRupee className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <IndianRupee className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#89A8B2]" />
                 <Input
                   id="targetValue"
                   type="number"
@@ -339,54 +291,73 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
                   onChange={handleChange}
                   placeholder="50000"
                   min="1"
-                  className={`h-12 pl-10 text-base ${
-                    errors.targetValue
-                      ? "border-red-500 focus-visible:ring-red-500"
-                      : ""
-                  }`}
+                  className={`h-14 pl-12 rounded-2xl text-base bg-white border-white/60 shadow-sm transition-all focus-visible:ring-[#89A8B2] ${errors.targetValue ? "border-[#BF4646] focus-visible:ring-[#BF4646]" : ""}`}
                 />
               </div>
               {errors.targetValue && (
-                <p className="text-sm text-red-600">{errors.targetValue}</p>
-              )}
-              {form.targetValue > 0 && (
-                <p className="text-sm text-gray-500">
-                  Target:{" "}
-                  {new Intl.NumberFormat("en-IN", {
-                    style: "currency",
-                    currency: "INR",
-                  }).format(form.targetValue)}
+                <p className="text-sm text-[#BF4646] font-medium">
+                  {errors.targetValue}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Preview Card */}
+          <div className="space-y-2 pt-2">
+            <Label className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2">
+              <Palette className="w-4 h-4" /> Theme Color
+            </Label>
+            <div className="flex gap-3 flex-wrap">
+              {PRESET_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => setForm({ ...form, colour: color })}
+                  className={`w-10 h-10 rounded-full border-2 transition-transform active:scale-90 ${form.colour === color ? "border-[#2c3e50] scale-110 shadow-md" : "border-white shadow-sm"}`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+              <div
+                className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-transform overflow-hidden ${!PRESET_COLORS.includes(form.colour) ? "border-[#2c3e50] scale-110 shadow-md" : "border-white shadow-sm hover:scale-110"}`}
+              >
+                <div className="absolute inset-0 bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]" />
+                <Input
+                  type="color"
+                  name="colour"
+                  value={form.colour}
+                  onChange={handleChange}
+                  className="absolute inset-[-10px] w-20 h-20 opacity-0 cursor-pointer"
+                  title="Custom Color"
+                />
+              </div>
+            </div>
+          </div>
+
           {form.name && form.targetValue > 0 && (
-            <div className="mt-8 p-6 rounded-xl border-2 border-dashed border-gray-200 bg-gray-50/50">
-              <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <CheckCircle className="w-4 h-4" />
-                Preview
+            <div className="mt-8 p-6 rounded-3xl border border-white/60 bg-white/40 shadow-sm backdrop-blur-md transition-all duration-300">
+              <h4 className="text-xs font-bold text-[#546e7a] uppercase tracking-wider mb-4 flex items-center gap-2">
+                <CheckCircle className="w-4 h-4" /> Preview
               </h4>
               <div className="flex items-center gap-4">
                 <div
-                  className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
-                  style={{ backgroundColor: `${form.colour}20` }}
+                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm border border-white transition-colors duration-300"
+                  style={{ backgroundColor: `${form.colour}30` }}
                 >
                   {selectedCategory ? (
-                    <span className="text-lg">
+                    <span className="text-2xl">
                       {selectedCategory.label.split(" ")[0]}
                     </span>
                   ) : (
                     <Target
-                      className="w-6 h-6"
+                      className="w-7 h-7 transition-colors duration-300"
                       style={{ color: form.colour }}
                     />
                   )}
                 </div>
                 <div>
-                  <h5 className="font-semibold text-gray-900">{form.name}</h5>
-                  <p className="text-sm text-gray-600">
+                  <h5 className="font-extrabold text-lg text-[#2c3e50]">
+                    {form.name}
+                  </h5>
+                  <p className="text-[#546e7a] font-medium mt-1">
                     Target:{" "}
                     {new Intl.NumberFormat("en-IN", {
                       style: "currency",
@@ -398,31 +369,33 @@ export function GoalForm({ onGoalCreated }: GoalFormProps) {
             </div>
           )}
 
-          {/* Submit Button */}
-          <Button
+          <button
             type="submit"
-            className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 shadow-lg hover:shadow-xl transition-all duration-200"
-            disabled={createMutation.isPending}
+            disabled={isLoading}
+            className="w-full h-16 mt-4 flex items-center justify-center gap-2 rounded-full font-bold text-lg text-[#2c3e50] transition-all duration-200 shadow-md hover:shadow-lg active:scale-[0.98] border border-white/40"
             style={{
-              background: createMutation.isPending
-                ? undefined
-                : `linear-gradient(135deg, ${form.colour}, ${form.colour}dd)`,
+              backgroundColor: form.colour,
+              opacity: isLoading ? 0.7 : 1,
             }}
           >
-            {createMutation.isPending ? (
+            {isLoading ? (
               <>
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2" />
-                Creating Goal...
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#2c3e50] border-t-transparent" />
+                {isEditing ? "Saving Changes..." : "Creating Goal..."}
               </>
             ) : (
               <>
-                <Plus className="w-5 h-5 mr-2" />
-                Create Goal
+                {isEditing ? (
+                  <Save className="w-6 h-6" />
+                ) : (
+                  <Plus className="w-6 h-6" />
+                )}
+                {isEditing ? "Save Changes" : "Create Goal"}
               </>
             )}
-          </Button>
+          </button>
         </form>
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
