@@ -26,7 +26,6 @@ import {
 import { useNavigate } from "react-router-dom";
 
 type SortOption = "name" | "progress" | "target" | "created" | "remaining";
-type FilterOption = "all" | "active" | "completed" | "near-completion";
 
 const EMPTY_GOALS: Goal[] = [];
 
