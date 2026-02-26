@@ -1,11 +1,11 @@
 "use client";
 
-import type React from "react";
+// import type React from "react";
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { deleteGoal, completeGoal, addContribution } from "./api/goals";
 import type { Goal } from "./api/goals";
-import { Progress } from "@/components/ui/progress";
+// import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import {
   Dialog,
