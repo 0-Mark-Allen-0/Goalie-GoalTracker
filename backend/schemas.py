@@ -1,6 +1,9 @@
 # FULL REWRITE - Introducing "Ledger Integrity"
 # A new schema to track changes to goals for history and audit purposes
 
+# v2.0 UPDATE - Introducing "Buckets" for better goal organization and tracking
+# Each goal can now belong to a bucket
+
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
@@ -12,10 +15,20 @@ class Contribution(BaseModel):
     type: str  # 'deposit' or 'withdrawal'
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
+# NEW - Bucket:
+class Bucket(BaseModel):
+    id: Optional[str] = None
+    name: str
+    type: str # e.g., "Savings", "Investment", "Expense"
+    userId: Optional[str] = None
+    totalBalance: int = 0
+    contributions: List[Contribution] = []
 
 # UPDATE - Integrates with Contribution to maintain ledger history
+# v2.0 UPDATE - Link to Bucket
 class Goal(BaseModel):
     id: Optional[str] = None  # Updated to str because Mongo uses a str ID
+    bucketId: str # NEW - Bucket Link
     name: str
     description: str
     category: str

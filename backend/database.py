@@ -13,3 +13,9 @@ db = client["goal_app"]
 
 users_collection = db["users"]
 goals_collection = db["goals"]
+buckets_collection = db["buckets"]
+
+# NEW - Create compound indexes for better performance
+async def create_indexes():
+    await buckets_collection.create_index("user_id")
+    await goals_collection.create_index([("user_id", 1), ("bucket_id", 1)])

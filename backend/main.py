@@ -1,9 +1,12 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+# Routers
 from auth import router as auth_router
-import goals
 from crud import router as goals_router
+from buckets import router as buckets_router
+
 import os
 
 app = FastAPI()
@@ -26,7 +29,7 @@ app.add_middleware(
 )
 
 app.include_router(auth_router)
-# app.include_router(goals.router)
+app.include_router(buckets_router)
 app.include_router(goals_router)
 
 @app.get("/")
