@@ -1,8 +1,5 @@
 # FULL REWRITE - Introducing "Ledger Integrity"
-# A new schema to track changes to goals for history and audit purposes
-
-# v2.0 UPDATE - Introducing "Buckets" for better goal organization and tracking
-# Each goal can now belong to a bucket
+# v2.0 UPDATE - Introducing "Buckets" and "Cross-Entity Transfers"
 
 from pydantic import BaseModel, Field
 from typing import Optional, List
@@ -12,20 +9,20 @@ from datetime import datetime
 # NEW - The ledger system to track changes to goals
 class Contribution(BaseModel):
     amount: int
-    type: str  # 'deposit' or 'withdrawal'
+    type: str  # 'deposit', 'withdrawal', 'transfer_in', or 'transfer_out'
+    referenceId: Optional[str] = None # CHANGED: Added to link double-entry transfers
     timestamp: datetime = Field(default_factory=datetime.utcnow)
 
 # NEW - Bucket:
 class Bucket(BaseModel):
     id: Optional[str] = None
     name: str
-    type: str # e.g., "Savings", "Investment", "Expense"
+    type: str # e.g., "bank_account", "wallet", "investment"
     userId: Optional[str] = None
     totalBalance: int = 0
     contributions: List[Contribution] = []
 
-# UPDATE - Integrates with Contribution to maintain ledger history
-# v2.0 UPDATE - Link to Bucket
+# UPDATE - Link to Bucket
 class Goal(BaseModel):
     id: Optional[str] = None  # Updated to str because Mongo uses a str ID
     bucketId: str # NEW - Bucket Link
@@ -36,7 +33,6 @@ class Goal(BaseModel):
     targetValue: int
     currentValue: int = 0
     completed: bool = False
-    # NEW - List of contributions for ledger integrity
     contributions: List[Contribution] = []
 
 
@@ -50,10 +46,15 @@ class GoalUpdate(BaseModel):
     completed: Optional[bool] = None
 
 
-# NEW - A separate schema for handling contributions to maintain clear separation of concerns
 class ContributionRequest(BaseModel):
     amount: int
     type: str  # 'deposit' or 'withdrawal'
+
+# NEW - Required for the transactional engine moving money between goals
+class TransferRequest(BaseModel):
+    sourceId: str
+    targetId: str
+    amount: int
 
 
 # UNCHANGED

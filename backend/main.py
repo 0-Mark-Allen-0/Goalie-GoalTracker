@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth import router as auth_router
 from crud import router as goals_router
 from buckets import router as buckets_router
+from transactions import router as transactions_router
 
 import os
 
@@ -31,6 +32,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(buckets_router)
 app.include_router(goals_router)
+app.include_router(transactions_router)
 
 @app.get("/")
 def read_root():

@@ -1,14 +1,29 @@
-// IMPROVED goals.ts (v0)
+// frontend/src/api/goals.ts
 import axios from "axios";
 
-// NEW - Contribution Ledger Interface:
+// --- INTERFACES ---
+
 export interface Contribution {
+  id?: string;
   amount: number;
-  type: "deposit" | "withdrawal";
+  type: "deposit" | "withdrawal" | "transfer_in" | "transfer_out";
+  referenceId?: string; // Used for linking transfers
   timestamp?: string;
 }
+
+export interface Bucket {
+  id?: string;
+  name: string;
+  type: string;
+  totalBalance: number;
+  unallocatedFunds?: number; // Derived from backend
+  userId?: string;
+  contributions?: Contribution[];
+}
+
 export interface Goal {
   id?: string;
+  bucketId: string; // NEW - Strictly Required
   name: string;
   description: string;
   category: string;
@@ -16,17 +31,17 @@ export interface Goal {
   targetValue: number;
   currentValue: number;
   completed?: boolean;
-  // NEW - Contribution Ledger Logic:
-  contributions?: Contribution[]; // Optional array to track contributions
+  contributions?: Contribution[];
 }
 
-// Use environment variable or fallback to localhost for development
+// --- API CONFIG ---
+
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
-// Create an Axios instance with credentials included
+// Root API instance
 const api = axios.create({
-  baseURL: `${API_BASE_URL}/goals`,
+  baseURL: API_BASE_URL,
   withCredentials: true,
 });
 
@@ -34,28 +49,53 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Redirect to login if unauthorized
       window.location.href = "/";
     }
     return Promise.reject(error);
   },
 );
 
-export const getGoals = () => api.get<Goal[]>("/");
-export const createGoal = (goal: Goal) => api.post<Goal>("/", goal);
+// --- AUTH ---
+export const getCurrentUser = () => api.get(`/auth/me`);
+export const logout = () => api.post(`/auth/logout`, {});
+
+// --- GOALS ---
+export const getGoals = () => api.get<Goal[]>("/goals/");
+export const createGoal = (goal: Partial<Goal>) =>
+  api.post<Goal>("/goals/", goal);
 export const updateGoal = (id: string, goal: Partial<Goal>) =>
-  api.put<Goal>(`/${id}`, goal);
-export const deleteGoal = (id: string) => api.delete<{ msg: string }>(`/${id}`);
-export const completeGoal = (id: string) => api.put<Goal>(`/${id}/complete`);
+  api.put<Goal>(`/goals/${id}`, goal);
+export const deleteGoal = (id: string) =>
+  api.delete<{ msg: string }>(`/goals/${id}`);
+export const completeGoal = (id: string) =>
+  api.put<Goal>(`/goals/${id}/complete`);
 
-export const getCurrentUser = () =>
-  axios.get(`${API_BASE_URL}/auth/me`, { withCredentials: true });
+// --- BUCKETS (NEW) ---
+export const getBuckets = () => api.get<Bucket[]>("/buckets/");
+export const createBucket = (bucket: Partial<Bucket>) =>
+  api.post<Bucket>("/buckets/", bucket);
+export const updateBucket = (id: string, bucket: Partial<Bucket>) =>
+  api.put<Bucket>(`/buckets/${id}`, bucket);
+export const deleteBucket = (id: string) =>
+  api.delete<{ message: string }>(`/buckets/${id}`);
 
-export const logout = () =>
-  axios.post(`${API_BASE_URL}/auth/logout`, {}, { withCredentials: true });
-
-// NEW - Contribution Ledger API Calls:
-export const addContribution = (
+// --- TRANSACTIONS (NEW) ---
+export const allocateToGoal = (
   id: string,
   payload: { amount: number; type: "deposit" | "withdrawal" },
-) => api.post<Goal>(`/${id}/contributions`, payload);
+) => api.post<Goal>(`/transactions/goal/${id}/contribute`, payload);
+
+export const withdrawFromBucket = (id: string, payload: { amount: number }) =>
+  api.post<{ message: string }>(`/transactions/bucket/${id}/withdraw`, payload);
+
+export const transferBetweenGoals = (payload: {
+  sourceId: string;
+  targetId: string;
+  amount: number;
+}) =>
+  api.post<{
+    message: string;
+    requested: number;
+    transferred: number;
+    overflow_prevented: number;
+  }>(`/transactions/transfer/goal-to-goal`, payload);

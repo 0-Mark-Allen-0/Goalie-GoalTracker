@@ -1,9 +1,10 @@
 # FULL REWRITE - Asynchronous Ops. & Contribution Ledger Logic
 from fastapi import APIRouter, Depends, HTTPException, status
 from auth import get_current_user
-from database import goals_collection
+from database import goals_collection, buckets_collection # CHANGED: Imported buckets_collection
 from bson import ObjectId
 from datetime import datetime
+import uuid # CHANGED: Imported uuid for ledger integrity
 
 router = APIRouter(prefix="/goals", tags=["goals"])
 
@@ -11,15 +12,15 @@ router = APIRouter(prefix="/goals", tags=["goals"])
 def goalHelper(goal) -> dict:
     return {
         "id": str(goal["_id"]),
+        "bucketId": goal.get("bucketId", ""),
         "name": goal["name"],
         "description": goal["description"],
         "category": goal["category"],
         "colour": goal["colour"],
         "targetValue": goal["targetValue"],
-        "currentValue": goal.get("currentValue", 0),  # Default to 0 if not present
+        "currentValue": goal.get("currentValue", 0),
         "completed": goal.get("completed", False),
         "userId": goal["userId"],
-        # NEW - Include contributions in the response for ledger integrity
         "contributions": goal.get("contributions", []),
     }
 
@@ -82,7 +83,6 @@ async def updateGoal(id: str, data: dict, user=Depends(get_current_user)):
     return goalHelper(updated_goal)
 
 
-# NEW - Contribution Logic:
 @router.post("/{id}/contributions", response_model=dict)
 async def addContribution(id: str, payload: dict, user=Depends(get_current_user)):
     existing_goal = await goals_collection.find_one({"_id": ObjectId(id)})
@@ -151,6 +151,30 @@ async def completeGoal(id: str, user=Depends(get_current_user)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Goal not found.")
     if existing_goal["userId"] != user["sub"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized.")
+
+    # CHANGED: Safety check to avoid double-deducting if already completed
+    if existing_goal.get("completed", False):
+        return goalHelper(existing_goal)
+
+    # CHANGED: Deduct target value from parent bucket
+    target_val = existing_goal.get("targetValue", 0)
+    bucket_id = existing_goal.get("bucketId")
+
+    if bucket_id:
+        withdrawal_record = {
+            "id": str(uuid.uuid4()),
+            "amount": target_val,
+            "type": "withdrawal",
+            "timestamp": datetime.utcnow(),
+            "referenceId": id # Notes that this withdrawal happened because the goal finished
+        }
+        await buckets_collection.update_one(
+            {"_id": ObjectId(bucket_id)},
+            {
+                "$inc": {"totalBalance": -target_val},
+                "$push": {"contributions": withdrawal_record}
+            }
+        )
 
     await goals_collection.update_one(
         {"_id": ObjectId(id)}, 

@@ -1,7 +1,8 @@
+// frontend/src/GoalForm.tsx
 import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { createGoal, updateGoal } from "@/api/goals";
-import type { Goal } from "@/api/goals";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
+import { createGoal, updateGoal, getBuckets } from "@/api/goals";
+import type { Goal, Bucket } from "@/api/goals";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,13 +23,14 @@ import {
   CheckCircle,
   X,
   Save,
+  Wallet,
 } from "lucide-react";
 import { toast } from "sonner";
 
 interface GoalFormProps {
-  onGoalCreated: () => void; // Used for both creation and updates
+  onGoalCreated: () => void;
   onCancel?: () => void;
-  initialData?: Goal; // <-- NEW: Allows form to be used for editing
+  initialData?: Goal;
 }
 
 const GOAL_CATEGORIES = [
@@ -69,8 +71,13 @@ export function GoalForm({
   const queryClient = useQueryClient();
   const isEditing = !!initialData;
 
-  // Initialize state with existing data if editing, otherwise default
-  const [form, setForm] = useState<Goal>(
+  const { data: bucketsResponse, isLoading: bucketsLoading } = useQuery({
+    queryKey: ["buckets"],
+    queryFn: getBuckets,
+  });
+  const buckets = bucketsResponse?.data || [];
+
+  const [form, setForm] = useState<Partial<Goal>>(
     initialData || {
       name: "",
       description: "",
@@ -78,20 +85,27 @@ export function GoalForm({
       colour: "#BAE1FF",
       targetValue: 0,
       currentValue: 0,
+      bucketId: "",
     },
   );
+
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
-    if (!form.name.trim()) newErrors.name = "Goal name is required";
+    if (!form.name?.trim()) newErrors.name = "Goal name is required";
     else if (form.name.length < 3)
       newErrors.name = "Goal name must be at least 3 characters";
-    if (!form.description.trim())
+
+    if (!form.description?.trim())
       newErrors.description = "Description is required";
     else if (form.description.length < 10)
       newErrors.description = "Description must be at least 10 characters";
+
     if (!form.category) newErrors.category = "Please select a category";
+    if (!form.bucketId)
+      newErrors.bucketId = "Please select a funding source (Bucket)";
+
     if (!form.targetValue || form.targetValue <= 0)
       newErrors.targetValue = "Target amount must be greater than 0";
     else if (form.targetValue < 100)
@@ -110,25 +124,27 @@ export function GoalForm({
     if (errors[name]) setErrors({ ...errors, [name]: "" });
   };
 
-  const handleCategoryChange = (value: string) => {
-    setForm({ ...form, category: value });
-    if (errors.category) setErrors({ ...errors, category: "" });
+  const handleSelectChange = (
+    field: "category" | "bucketId",
+    value: string,
+  ) => {
+    setForm({ ...form, [field]: value });
+    if (errors[field]) setErrors({ ...errors, [field]: "" });
   };
 
-  // Creation Mutation
   const createMutation = useMutation({
     mutationFn: createGoal,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
+      queryClient.invalidateQueries({ queryKey: ["buckets"] });
       onGoalCreated();
       toast.success("🎉 Goal created successfully!");
     },
     onError: () => toast.error("Failed to create goal. Please try again."),
   });
 
-  // Update Mutation
   const updateMutation = useMutation({
-    mutationFn: (updatedGoal: Goal) =>
+    mutationFn: (updatedGoal: Partial<Goal>) =>
       updateGoal(initialData!.id!, updatedGoal),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["goals"] });
@@ -239,6 +255,62 @@ export function GoalForm({
             )}
           </div>
 
+          <div className="space-y-2">
+            <Label className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2">
+              <Wallet className="w-4 h-4" /> Funding Source (Bucket)
+            </Label>
+            <Select
+              value={form.bucketId}
+              onValueChange={(val) => handleSelectChange("bucketId", val)}
+              disabled={isEditing}
+            >
+              {/* CHANGED: Added w-full here to ensure consistent width scaling */}
+              <SelectTrigger
+                className={`w-full h-14 rounded-2xl text-base bg-white border-white/60 shadow-sm px-4 transition-all focus-visible:ring-[#89A8B2] ${errors.bucketId ? "border-[#BF4646]" : ""}`}
+              >
+                <SelectValue
+                  placeholder={
+                    bucketsLoading
+                      ? "Loading sources..."
+                      : "Choose where the money comes from"
+                  }
+                />
+              </SelectTrigger>
+              <SelectContent className="rounded-2xl border-white/60 bg-white shadow-xl">
+                {buckets.length === 0 && !bucketsLoading && (
+                  <SelectItem value="none" disabled>
+                    No buckets found. Create one first.
+                  </SelectItem>
+                )}
+                {buckets.map((bucket: Bucket) => (
+                  <SelectItem
+                    key={bucket.id}
+                    value={bucket.id!}
+                    className="text-base py-3 cursor-pointer hover:bg-gray-50"
+                  >
+                    <div className="flex items-center gap-2 justify-between w-full">
+                      <span>{bucket.name}</span>
+                      <span className="text-xs text-[#89A8B2] font-bold">
+                        Unallocated: ₹
+                        {bucket.unallocatedFunds?.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {errors.bucketId && (
+              <p className="text-sm text-[#BF4646] font-medium">
+                {errors.bucketId}
+              </p>
+            )}
+            {isEditing && (
+              <p className="text-xs text-[#546e7a] italic">
+                The funding source cannot be changed once a goal is created.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-2">
               <Label className="text-sm font-bold text-[#546e7a] uppercase tracking-wider flex items-center gap-2 mb-2">
@@ -246,10 +318,10 @@ export function GoalForm({
               </Label>
               <Select
                 value={form.category}
-                onValueChange={handleCategoryChange}
+                onValueChange={(val) => handleSelectChange("category", val)}
               >
                 <SelectTrigger
-                  className={`h-14 rounded-2xl text-base bg-white border-white/60 shadow-sm px-4 transition-all focus-visible:ring-[#89A8B2] ${errors.category ? "border-[#BF4646]" : ""}`}
+                  className={`w-full h-14 rounded-2xl text-base bg-white border-white/60 shadow-sm px-4 transition-all focus-visible:ring-[#89A8B2] ${errors.category ? "border-[#BF4646]" : ""}`}
                 >
                   <SelectValue placeholder="Choose a category" />
                 </SelectTrigger>
@@ -281,7 +353,7 @@ export function GoalForm({
               >
                 <IndianRupee className="w-4 h-4" /> Target Amount
               </Label>
-              <div className="relative">
+              <div className="relative w-full">
                 <IndianRupee className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-[#89A8B2]" />
                 <Input
                   id="targetValue"
@@ -291,7 +363,7 @@ export function GoalForm({
                   onChange={handleChange}
                   placeholder="50000"
                   min="1"
-                  className={`h-14 pl-12 rounded-2xl text-base bg-white border-white/60 shadow-sm transition-all focus-visible:ring-[#89A8B2] ${errors.targetValue ? "border-[#BF4646] focus-visible:ring-[#BF4646]" : ""}`}
+                  className={`w-full h-14 pl-12 rounded-2xl text-base bg-white border-white/60 shadow-sm transition-all focus-visible:ring-[#89A8B2] ${errors.targetValue ? "border-[#BF4646] focus-visible:ring-[#BF4646]" : ""}`}
                 />
               </div>
               {errors.targetValue && (
@@ -317,7 +389,7 @@ export function GoalForm({
                 />
               ))}
               <div
-                className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-transform overflow-hidden ${!PRESET_COLORS.includes(form.colour) ? "border-[#2c3e50] scale-110 shadow-md" : "border-white shadow-sm hover:scale-110"}`}
+                className={`relative flex items-center justify-center w-10 h-10 rounded-full border-2 transition-transform overflow-hidden ${!PRESET_COLORS.includes(form.colour!) ? "border-[#2c3e50] scale-110 shadow-md" : "border-white shadow-sm hover:scale-110"}`}
               >
                 <div className="absolute inset-0 bg-[conic-gradient(from_0deg,#ff0000,#ffff00,#00ff00,#00ffff,#0000ff,#ff00ff,#ff0000)]" />
                 <Input
@@ -332,7 +404,7 @@ export function GoalForm({
             </div>
           </div>
 
-          {form.name && form.targetValue > 0 && (
+          {form.name && form.targetValue! > 0 && (
             <div className="mt-8 p-6 rounded-3xl border border-white/60 bg-white/40 shadow-sm backdrop-blur-md transition-all duration-300">
               <h4 className="text-xs font-bold text-[#546e7a] uppercase tracking-wider mb-4 flex items-center gap-2">
                 <CheckCircle className="w-4 h-4" /> Preview
@@ -362,7 +434,7 @@ export function GoalForm({
                     {new Intl.NumberFormat("en-IN", {
                       style: "currency",
                       currency: "INR",
-                    }).format(form.targetValue)}
+                    }).format(form.targetValue!)}
                   </p>
                 </div>
               </div>
