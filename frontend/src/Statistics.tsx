@@ -157,8 +157,8 @@ export function Statistics() {
                       ))}
                     </Pie>
                     <Tooltip
-                      formatter={(val: number) =>
-                        `₹${val.toLocaleString("en-IN")}`
+                      formatter={(val: number | undefined) =>
+                        `₹${(val ?? 0).toLocaleString("en-IN")}`
                       }
                       contentStyle={{
                         borderRadius: "16px",
@@ -204,8 +204,8 @@ export function Statistics() {
                     />
                     <Tooltip
                       cursor={{ fill: "rgba(255,255,255,0.4)" }}
-                      formatter={(val: number) =>
-                        `₹${val.toLocaleString("en-IN")}`
+                      formatter={(val: number | undefined) =>
+                        `₹${(val ?? 0).toLocaleString("en-IN")}`
                       }
                       contentStyle={{
                         borderRadius: "16px",
