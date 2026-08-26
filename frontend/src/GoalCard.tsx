@@ -1,18 +1,41 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // frontend/src/GoalCard.tsx
-"use client";
-
-import { useState } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { deleteGoal, completeGoal, allocateToGoal } from "./api/goals";
-import type { Goal } from "./api/goals";
-import { Input } from "@/components/ui/input";
+// A goal reserves money from specific INCOMES. Reserved money is NOT deducted — it
+// still belongs to the earning it came from, it just stops being spendable.
+//
+// Reaching the target does NOT complete anything: it only enables the Complete button.
+// Completing is the single action that turns reservations into a real expense, still
+// attributed to the incomes it was spent from.
+import { useEffect, useMemo, useState } from "react";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Check,
+  CheckCircle2,
+  Minus,
+  MoreVertical,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Target,
+  Trash2,
+  XCircle,
+} from "lucide-react";
+
+import {
+  abandonGoal,
+  completeGoal,
+  deleteGoal,
+  releaseFromGoal,
+  reopenGoal,
+  reserveToGoal,
+} from "@/api";
+import type { Goal, Income, Label } from "@/api/types";
+import { useLedgerMutation } from "@/hooks/queries";
+import { incomeColour, incomeTitle, shortDate } from "@/lib/income";
+import { formatMoney, parseMoneyInput, percentOf, type MoneyFormat } from "@/lib/money";
+import { staggerStyle } from "@/lib/motion";
+import { toDraftSplits, toSplits, splitsTotal, type DraftSplit } from "@/lib/splits";
+import { cn } from "@/lib/utils";
+import { MoneyText, SegmentedBar } from "@/components/data-display";
+import { IncomePicker, LabelSelect, MoneyInput } from "@/components/form-controls";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,326 +47,603 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"; // NEW: Dropdown Menu
+} from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
+import { Label as FieldLabel } from "@/components/ui/label";
 import {
-  Plus,
-  Minus,
-  Trash2,
-  CheckCircle2,
-  Target,
-  IndianRupee,
-  LineChart,
-  Pencil,
-  MoreVertical,
-} from "lucide-react";
-import { toast } from "sonner";
-
-import { GoalForm } from "./GoalForm";
-import { GoalChart } from "./GoalChart";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface GoalCardProps {
   goal: Goal;
-  onGoalUpdated: () => void;
+  incomes: Income[];
+  labels: Map<string, Label>;
+  format: MoneyFormat;
+  index?: number;
+  onEdit: (goal: Goal) => void;
 }
 
-export function GoalCard({ goal, onGoalUpdated }: GoalCardProps) {
-  const queryClient = useQueryClient();
-  const [addAmount, setAddAmount] = useState<string>("");
-  const [subtractAmount, setSubtractAmount] = useState<string>("");
+export function GoalCard({
+  goal,
+  incomes,
+  labels,
+  format,
+  index = 0,
+  onEdit,
+}: GoalCardProps) {
+  const [reserveOpen, setReserveOpen] = useState(false);
+  const [releaseOpen, setReleaseOpen] = useState(false);
+  const [completeOpen, setCompleteOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [abandonOpen, setAbandonOpen] = useState(false);
 
-  const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [subtractDialogOpen, setSubtractDialogOpen] = useState(false);
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [chartDialogOpen, setChartDialogOpen] = useState(false);
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false); // NEW: Manual state
+  const incomeById = useMemo(
+    () => new Map(incomes.map((income) => [income.id, income])),
+    [incomes],
+  );
 
-  const progress = Math.min((goal.currentValue / goal.targetValue) * 100, 100);
-  const isCompleted = goal.currentValue >= goal.targetValue;
-  const isOfficiallyCompleted = goal.completed;
-  const remainingAmount = goal.targetValue - goal.currentValue;
+  const remaining = Math.max(0, goal.targetValue - goal.saved);
+  const isFunded = goal.saved >= goal.targetValue;
+  const isActive = goal.status === "active";
+  const progress = percentOf(goal.saved, goal.targetValue);
 
-  const onSuccessRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["goals"] });
-    queryClient.invalidateQueries({ queryKey: ["buckets"] });
-    onGoalUpdated();
-  };
+  // Each segment is one earning standing behind this goal.
+  const segments = goal.breakdown.map((split) => {
+    const income = incomeById.get(split.incomeId);
+    return {
+      key: split.incomeId,
+      label: income ? incomeTitle(income, format.locale) : "Unknown income",
+      amount: split.amount,
+      colour: incomeColour(income, labels),
+    };
+  });
 
-  const contributeMutation = useMutation({
-    mutationFn: (payload: { amount: number; type: "deposit" | "withdrawal" }) =>
-      allocateToGoal(goal.id!, payload),
-    onSuccess: () => {
-      setAddAmount("");
-      setSubtractAmount("");
-      setAddDialogOpen(false);
-      setSubtractDialogOpen(false);
-      toast.success("Transaction completed successfully.");
-      onSuccessRefresh();
+  const deleteMutation = useLedgerMutation(async () => (await deleteGoal(goal.id)).data, {
+    successMessage: "Goal deleted.",
+    onSuccess: () => setDeleteOpen(false),
+  });
+  const abandonMutation = useLedgerMutation(
+    async () => (await abandonGoal(goal.id)).data,
+    {
+      successMessage: "Goal abandoned — every reserved rupee is spendable again.",
+      onSuccess: () => setAbandonOpen(false),
     },
-    onError: (error: any) =>
-      toast.error(error.response?.data?.detail || "Transaction failed."),
+  );
+  const reopenMutation = useLedgerMutation(async () => (await reopenGoal(goal.id)).data, {
+    successMessage: "Goal reopened. The expense was removed and the money re-reserved.",
   });
-
-  const completeMutation = useMutation({
-    mutationFn: () => completeGoal(goal.id!),
-    onSuccess: onSuccessRefresh,
-  });
-  const deleteMutation = useMutation({
-    mutationFn: () => deleteGoal(goal.id!),
-    onSuccess: onSuccessRefresh,
-  });
-
-  const handleAdd = () => {
-    const parsedAdd = parseFloat(addAmount);
-    if (!isNaN(parsedAdd) && parsedAdd > 0 && parsedAdd <= remainingAmount) {
-      contributeMutation.mutate({ amount: parsedAdd, type: "deposit" });
-    }
-  };
-
-  const handleSubtract = () => {
-    const parsedSub = parseFloat(subtractAmount);
-    if (!isNaN(parsedSub) && parsedSub > 0 && parsedSub <= goal.currentValue) {
-      contributeMutation.mutate({ amount: parsedSub, type: "withdrawal" });
-    }
-  };
 
   return (
     <>
-      {/* DIALOGS EXTRACTED OUTSIDE TO PREVENT DROPDOWN INTERFERENCE */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto rounded-[32px] p-0 border-0 bg-transparent shadow-none [&>button]:hidden">
-          <GoalForm
-            initialData={goal}
-            onGoalCreated={() => setEditDialogOpen(false)}
-            onCancel={() => setEditDialogOpen(false)}
-          />
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={chartDialogOpen} onOpenChange={setChartDialogOpen}>
-        <DialogContent className="max-w-3xl rounded-[32px] bg-[#F1F0E8] border-white shadow-2xl p-8">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-extrabold text-[#2c3e50] flex items-center gap-3">
-              <Target
-                className="w-6 h-6"
-                style={{ color: goal.colour || "#89A8B2" }}
-              />{" "}
-              {goal.name} Progress
-            </DialogTitle>
-          </DialogHeader>
-          <GoalChart goal={goal} />
-        </DialogContent>
-      </Dialog>
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent className="sm:max-w-sm rounded-[32px] bg-[#F1F0E8] border-white shadow-xl p-6">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-2xl font-extrabold text-[#2c3e50]">
-              Delete Goal?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[#546e7a] font-medium">
-              This will permanently lose all progress. Funds return to the
-              unallocated pool.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter className="flex flex-col sm:flex-col gap-3 mt-4 w-full sm:space-x-0">
-            <AlertDialogAction
-              onClick={() => deleteMutation.mutate()}
-              className="btn-destructive w-full m-0 bg-[#BF4646]"
-            >
-              Yes, Delete
-            </AlertDialogAction>
-            <AlertDialogCancel className="btn-secondary w-full m-0">
-              Cancel
-            </AlertDialogCancel>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
-        <DialogContent className="sm:max-w-sm rounded-[32px] bg-[#F1F0E8] border-white shadow-xl p-6">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-extrabold text-[#2c3e50] text-center">
-              Allocate Funds
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="number"
-              placeholder="Enter amount..."
-              value={addAmount}
-              onChange={(e) => setAddAmount(e.target.value)}
-              className="h-12 rounded-2xl bg-white border-white/60 mb-2"
-            />
-            <div className="text-sm font-medium text-[#546e7a] flex justify-between px-1">
-              <span>Max needed:</span>
-              <span className="text-[#89A8B2]">
-                ₹{remainingAmount.toLocaleString("en-IN")}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={handleAdd}
-            disabled={!addAmount || contributeMutation.isPending}
-            className="btn-primary w-full h-12"
-          >
-            Confirm
-          </button>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={subtractDialogOpen} onOpenChange={setSubtractDialogOpen}>
-        <DialogContent className="sm:max-w-sm rounded-[32px] bg-[#F1F0E8] border-white shadow-xl p-6">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-extrabold text-[#2c3e50] text-center">
-              Free Up Funds
-            </DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <Input
-              type="number"
-              placeholder="Enter amount..."
-              value={subtractAmount}
-              onChange={(e) => setSubtractAmount(e.target.value)}
-              className="h-12 rounded-2xl bg-white border-white/60 mb-2"
-            />
-            <div className="text-sm font-medium text-[#546e7a] flex justify-between px-1">
-              <span>Currently Allocated:</span>
-              <span className="text-[#89A8B2]">
-                ₹{goal.currentValue.toLocaleString("en-IN")}
-              </span>
-            </div>
-          </div>
-          <button
-            onClick={handleSubtract}
-            disabled={!subtractAmount || contributeMutation.isPending}
-            className="btn-destructive w-full h-12 bg-[#BF4646]"
-          >
-            Confirm
-          </button>
-        </DialogContent>
-      </Dialog>
-
-      {/* CHANGED: The Horizontal Pill Design */}
-      <div className="flex flex-col md:flex-row items-center justify-between p-4 bg-white/70 backdrop-blur-md rounded-2xl border border-white/80 shadow-sm hover:shadow-md transition-all gap-4">
-        {/* Left: Icon & Title */}
-        <div className="flex items-center gap-4 w-full md:w-1/3 min-w-[200px]">
-          <div className="p-3 bg-white rounded-xl shadow-sm border border-white/60 shrink-0">
-            <Target
-              className="w-5 h-5"
-              style={{ color: goal.colour || "#89A8B2" }}
-            />
-          </div>
-          <div className="truncate">
-            <h3
-              className="text-lg font-extrabold text-[#2c3e50] truncate"
-              title={goal.name}
-            >
-              {goal.name}
-            </h3>
-            {isOfficiallyCompleted ? (
-              <span className="text-xs font-bold text-[#89A8B2] flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" /> Completed
-              </span>
-            ) : (
-              <span className="text-xs font-bold text-[#546e7a]">
-                Target: ₹{goal.targetValue.toLocaleString("en-IN")}
-              </span>
+      <div
+        className={cn(
+          "glass-card glass-card-strong glass-card-hover p-5 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-[--motion-slow] fill-mode-both",
+          !isActive && "opacity-90",
+        )}
+        style={staggerStyle(index)}
+      >
+        <div className="flex items-start justify-between gap-3 mb-1">
+          <div className="min-w-0">
+            <h3 className="font-serif text-2xl text-ink-1 truncate">{goal.name}</h3>
+            {goal.description && (
+              <p className="text-sm text-ink-2 font-medium line-clamp-2 mt-0.5">
+                {goal.description}
+              </p>
             )}
           </div>
-        </div>
 
-        {/* Middle: Progress Bar */}
-        <div className="w-full md:w-1/3 flex flex-col justify-center">
-          <div className="flex justify-between text-xs font-bold mb-1.5 px-1">
-            <span className="text-[#2c3e50] flex items-center">
-              <IndianRupee className="w-3 h-3" />{" "}
-              {goal.currentValue.toLocaleString("en-IN")}
-            </span>
-            <span className="text-[#546e7a]">{Math.floor(progress)}%</span>
-          </div>
-          <div className="h-2 w-full bg-[#E5E1DA] rounded-full overflow-hidden">
-            <div
-              className="h-full transition-all duration-500 ease-out"
-              style={{
-                width: `${progress}%`,
-                backgroundColor: goal.colour || "#89A8B2",
-              }}
-            />
-          </div>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="w-full md:w-1/3 flex items-center justify-end gap-2">
-          {!isOfficiallyCompleted && (
-            <>
-              {isCompleted ? (
-                <button
-                  onClick={() => completeMutation.mutate()}
-                  className="h-10 px-4 rounded-full bg-green-600 hover:bg-green-700 text-white text-sm font-bold shadow-sm transition-all"
-                >
-                  Finish
-                </button>
-              ) : (
-                <>
-                  <button
-                    onClick={() => setAddDialogOpen(true)}
-                    title="Allocate Funds"
-                    className="w-10 h-10 flex items-center justify-center bg-white hover:bg-[#89A8B2] text-[#89A8B2] hover:text-white rounded-full border border-white shadow-sm transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => setSubtractDialogOpen(true)}
-                    disabled={goal.currentValue <= 0}
-                    title="Free Up Funds"
-                    className="w-10 h-10 flex items-center justify-center bg-white hover:bg-[#546e7a] text-[#546e7a] hover:text-white disabled:opacity-50 disabled:hover:bg-white disabled:hover:text-[#546e7a] rounded-full border border-white shadow-sm transition-all"
-                  >
-                    <Minus className="w-4 h-4" />
-                  </button>
-                </>
-              )}
-            </>
-          )}
-
-          {/* NEW: Secondary Actions behind Dropdown Menu */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-10 h-10 flex items-center justify-center bg-transparent hover:bg-white/60 text-[#546e7a] rounded-full transition-all">
+              <button
+                aria-label={`Manage ${goal.name}`}
+                className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
+              >
                 <MoreVertical className="w-4 h-4" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              className="w-40 rounded-2xl bg-white/95 backdrop-blur-xl border-white/60 shadow-xl p-1"
-            >
-              <DropdownMenuItem
-                onSelect={() => setChartDialogOpen(true)}
-                className="rounded-xl font-medium cursor-pointer py-2"
-              >
-                <LineChart className="w-4 h-4 mr-2" /> View Chart
-              </DropdownMenuItem>
-              {!isOfficiallyCompleted && (
+            <DropdownMenuContent align="end" className="rounded-2xl border-hairline bg-white">
+              {isActive && (
+                <DropdownMenuItem onClick={() => onEdit(goal)} className="gap-2 font-medium">
+                  <Pencil className="w-4 h-4" /> Edit
+                </DropdownMenuItem>
+              )}
+              {goal.status === "completed" && (
                 <DropdownMenuItem
-                  onSelect={() => setEditDialogOpen(true)}
-                  className="rounded-xl font-medium cursor-pointer py-2"
+                  onClick={() => reopenMutation.mutate(undefined as void)}
+                  className="gap-2 font-medium"
                 >
-                  <Pencil className="w-4 h-4 mr-2" /> Edit Goal
+                  <RotateCcw className="w-4 h-4" /> Reopen
+                </DropdownMenuItem>
+              )}
+              {isActive && (
+                <DropdownMenuItem
+                  onClick={() => setAbandonOpen(true)}
+                  className="gap-2 font-medium"
+                >
+                  <XCircle className="w-4 h-4" /> Abandon
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
-                onSelect={() => setDeleteDialogOpen(true)}
-                className="rounded-xl font-medium cursor-pointer py-2 text-[#BF4646] focus:bg-[#BF4646]/10 focus:text-[#BF4646]"
+                onClick={() => setDeleteOpen(true)}
+                className="gap-2 font-medium text-critical"
               >
-                <Trash2 className="w-4 h-4 mr-2" /> Delete
+                <Trash2 className="w-4 h-4" /> Delete
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
+
+        <div className="flex items-baseline gap-2 mt-3 mb-3">
+          <MoneyText
+            minor={goal.saved}
+            format={format}
+            className="font-serif text-3xl text-ink-1"
+          />
+          <span className="text-sm font-semibold text-ink-3 tabular">
+            of {formatMoney(goal.targetValue, format)}
+          </span>
+        </div>
+
+        {/* The signature bar: which earnings are behind this goal. */}
+        <SegmentedBar
+          segments={segments}
+          total={goal.targetValue}
+          format={format}
+          height={14}
+          emptyHint="Nothing reserved yet — put some of an income towards it below."
+        />
+
+        <div className="flex items-center justify-between gap-2 mt-4 mb-4">
+          {goal.status === "completed" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-good">
+              <CheckCircle2 className="w-4 h-4" /> Completed
+            </span>
+          ) : goal.status === "abandoned" ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-3">
+              <XCircle className="w-4 h-4" /> Abandoned
+            </span>
+          ) : isFunded ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-good">
+              <Check className="w-4 h-4" /> Ready to complete
+            </span>
+          ) : (
+            <span className="text-sm font-semibold text-ink-2 tabular">
+              {formatMoney(remaining, format)} to go
+            </span>
+          )}
+          <span className="text-sm font-bold text-ink-3 tabular">{Math.round(progress)}%</span>
+        </div>
+
+        {isActive && (
+          <div className="flex flex-wrap gap-2 mt-auto">
+            <button
+              onClick={() => setReserveOpen(true)}
+              className="btn-primary h-10 px-4 text-sm flex-1"
+            >
+              <Plus className="w-4 h-4" /> Reserve
+            </button>
+            <button
+              onClick={() => setReleaseOpen(true)}
+              disabled={goal.saved === 0}
+              className="btn-secondary h-10 px-4 text-sm"
+            >
+              <Minus className="w-4 h-4" /> Release
+            </button>
+            <button
+              onClick={() => setCompleteOpen(true)}
+              disabled={goal.saved === 0}
+              className={cn(
+                "h-10 px-4 text-sm rounded-full font-semibold flex items-center justify-center gap-2 transition-all duration-[--motion-base] border",
+                isFunded
+                  ? "bg-good text-white border-good shadow-md hover:brightness-105 active:scale-[0.97]"
+                  : "bg-white/60 text-ink-2 border-white/70 hover:bg-white active:scale-[0.97]",
+                goal.saved === 0 && "opacity-50 cursor-not-allowed",
+              )}
+            >
+              <Target className="w-4 h-4" /> Complete
+            </button>
+          </div>
+        )}
       </div>
+
+      <ReserveDialog
+        goal={goal}
+        incomes={incomes}
+        labels={labels}
+        format={format}
+        open={reserveOpen}
+        onOpenChange={setReserveOpen}
+        mode="reserve"
+      />
+      <ReserveDialog
+        goal={goal}
+        incomes={incomes}
+        labels={labels}
+        format={format}
+        open={releaseOpen}
+        onOpenChange={setReleaseOpen}
+        mode="release"
+      />
+      <CompleteGoalDialog
+        goal={goal}
+        incomes={incomes}
+        format={format}
+        open={completeOpen}
+        onOpenChange={setCompleteOpen}
+      />
+
+      <AlertDialog open={abandonOpen} onOpenChange={setAbandonOpen}>
+        <AlertDialogContent className="rounded-[32px] bg-canvas border-hairline">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif text-2xl text-ink-1">
+              Abandon {goal.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-ink-2 font-medium">
+              Every reserved rupee goes straight back to the income it came from. No
+              expense is recorded, because nothing was actually spent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Keep going</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                abandonMutation.mutate(undefined as void);
+              }}
+              className="btn-primary"
+            >
+              Abandon
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <AlertDialogContent className="rounded-[32px] bg-canvas border-hairline">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif text-2xl text-ink-1">
+              Delete {goal.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-ink-2 font-medium">
+              Reservations are released back to their incomes. If this goal was already
+              completed, the expense it created is kept — that money really was spent.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-full">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                deleteMutation.mutate(undefined as void);
+              }}
+              className="btn-destructive"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
+  );
+}
+
+// --- Reserve / release -------------------------------------------------------
+
+function ReserveDialog({
+  goal,
+  incomes,
+  labels,
+  format,
+  open,
+  onOpenChange,
+  mode,
+}: {
+  goal: Goal;
+  incomes: Income[];
+  labels: Map<string, Label>;
+  format: MoneyFormat;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  mode: "reserve" | "release";
+}) {
+  const isReserve = mode === "reserve";
+  const held = useMemo(
+    () => new Map(goal.breakdown.map((split) => [split.incomeId, split.amount])),
+    [goal.breakdown],
+  );
+
+  const options = useMemo(
+    () =>
+      isReserve
+        ? incomes.filter((income) => income.remaining > 0)
+        : incomes.filter((income) => (held.get(income.id) ?? 0) > 0),
+    [incomes, isReserve, held],
+  );
+
+  const [incomeId, setIncomeId] = useState("");
+  const [text, setText] = useState("");
+
+  useEffect(() => {
+    if (!open) return;
+    setIncomeId(options[0]?.id ?? "");
+    setText("");
+    // Options are derived from props; re-seeding on open is enough.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const amount = parseMoneyInput(text, format) ?? 0;
+  const gap = Math.max(0, goal.targetValue - goal.saved);
+  const income = incomes.find((candidate) => candidate.id === incomeId);
+
+  const ceiling = isReserve
+    ? Math.min(income?.remaining ?? 0, gap)
+    : (held.get(incomeId) ?? 0);
+
+  const mutation = useLedgerMutation(
+    async () => {
+      const call = isReserve ? reserveToGoal : releaseFromGoal;
+      return (await call(goal.id, { incomeId, amount })).data;
+    },
+    {
+      successMessage: isReserve
+        ? "Reserved. The money stays with its income — it is just spoken for now."
+        : "Released back to its income.",
+      onSuccess: () => onOpenChange(false),
+    },
+  );
+
+  const canSubmit = Boolean(incomeId) && amount > 0 && amount <= ceiling && !mutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md max-h-[88vh] overflow-y-auto no-scrollbar rounded-[32px] bg-canvas border-hairline p-6">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-2xl text-ink-1">
+            {isReserve ? "Reserve for" : "Release from"} {goal.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        {options.length === 0 ? (
+          <p className="text-ink-2 font-medium py-4">
+            {isReserve
+              ? "No income has anything left to reserve. Record some income first."
+              : "Nothing is reserved for this goal yet."}
+          </p>
+        ) : (
+          <form
+            className="space-y-4 pt-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (canSubmit) mutation.mutate(undefined as void);
+            }}
+          >
+            <div className="space-y-2">
+              <FieldLabel className="text-sm font-semibold text-ink-2">
+                {isReserve ? "Which income?" : "Release from which income?"}
+              </FieldLabel>
+              <Select value={incomeId} onValueChange={setIncomeId}>
+                <SelectTrigger className="field w-full">
+                  <SelectValue placeholder="Choose an income" />
+                </SelectTrigger>
+                <SelectContent className="rounded-2xl border-hairline bg-white max-h-72">
+                  {options.map((option) => (
+                    <SelectItem key={option.id} value={option.id}>
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full shrink-0"
+                          style={{ backgroundColor: incomeColour(option, labels) }}
+                        />
+                        <span className="truncate">{option.description}</span>
+                        <span className="text-ink-3 text-xs tabular shrink-0">
+                          {shortDate(option.date, format.locale)}
+                        </span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs font-medium text-ink-3 tabular">
+                {isReserve
+                  ? `${formatMoney(income?.remaining ?? 0, format)} unspent · ${formatMoney(gap, format)} still needed`
+                  : `${formatMoney(held.get(incomeId) ?? 0, format)} of this income is reserved here`}
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <FieldLabel className="text-sm font-semibold text-ink-2">Amount</FieldLabel>
+              <MoneyInput
+                autoFocus
+                value={text}
+                onChange={setText}
+                format={format}
+                max={ceiling}
+                maxLabel={`The most you can ${mode} here is ${formatMoney(ceiling, format)}.`}
+              />
+            </div>
+
+            <button type="submit" disabled={!canSubmit} className="btn-primary w-full h-11">
+              {mutation.isPending ? "Working…" : isReserve ? "Reserve" : "Release"}
+            </button>
+          </form>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// --- Completion --------------------------------------------------------------
+
+function CompleteGoalDialog({
+  goal,
+  incomes,
+  format,
+  open,
+  onOpenChange,
+}: {
+  goal: Goal;
+  incomes: Income[];
+  format: MoneyFormat;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [splits, setSplits] = useState<DraftSplit[]>([]);
+  const [description, setDescription] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [accountId, setAccountId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setSplits(toDraftSplits(goal.breakdown));
+    setDescription(goal.name);
+    setDate(new Date().toISOString().slice(0, 10));
+    setCategoryId(null);
+    setAccountId(null);
+  }, [open, goal]);
+
+  // Completing releases the reservations first, so each income's ceiling is its
+  // unspent balance plus whatever this goal was holding from it.
+  const extraAllowance = useMemo(
+    () => Object.fromEntries(goal.breakdown.map((split) => [split.incomeId, split.amount])),
+    [goal.breakdown],
+  );
+
+  const prepared = toSplits(splits, format);
+  const actualAmount = splitsTotal(prepared);
+  const difference = actualAmount - goal.saved;
+
+  const mutation = useLedgerMutation(
+    async () =>
+      (
+        await completeGoal(goal.id, {
+          actualAmount,
+          date: `${date}T00:00:00Z`,
+          description: description.trim() || goal.name,
+          categoryId,
+          accountId,
+          splits: prepared,
+        })
+      ).data,
+    {
+      successMessage: "Done. The money left each income and is now a real expense.",
+      onSuccess: () => onOpenChange(false),
+    },
+  );
+
+  const canSubmit = prepared.length > 0 && actualAmount > 0 && !mutation.isPending;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg max-h-[88vh] overflow-y-auto no-scrollbar rounded-[32px] bg-canvas border-hairline p-6">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-3xl text-ink-1">
+            Complete {goal.name}
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-5 pt-2">
+          <p className="text-sm font-medium text-ink-2">
+            This records what you actually spent. Each income below is drawn down for
+            real, and the purchase joins your expense history.
+          </p>
+
+          <div className="space-y-2">
+            <FieldLabel className="text-sm font-semibold text-ink-2">
+              Spent from
+            </FieldLabel>
+            <IncomePicker
+              incomes={incomes}
+              splits={splits}
+              onChange={setSplits}
+              format={format}
+              locale={format.locale}
+              extraAllowance={extraAllowance}
+              entryDate={date}
+            />
+          </div>
+
+          <div className="rounded-2xl bg-white/70 border border-white/80 p-4 space-y-1">
+            <div className="flex items-baseline justify-between">
+              <span className="text-sm font-semibold text-ink-2">Total spend</span>
+              <MoneyText
+                minor={actualAmount}
+                format={format}
+                className="font-serif text-2xl text-ink-1"
+              />
+            </div>
+            {difference !== 0 && (
+              <p className="text-xs font-semibold text-ink-3 tabular">
+                {difference < 0
+                  ? `${formatMoney(-difference, format)} of your reservation goes back to its income.`
+                  : `${formatMoney(difference, format)} more than you reserved — it comes out of unspent money.`}
+              </p>
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <FieldLabel className="text-sm font-semibold text-ink-2">Description</FieldLabel>
+            <Input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              className="field"
+            />
+          </div>
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <FieldLabel className="text-sm font-semibold text-ink-2">Date</FieldLabel>
+              <Input
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                className="field"
+              />
+            </div>
+            <div className="space-y-2">
+              <FieldLabel className="text-sm font-semibold text-ink-2">Category</FieldLabel>
+              <LabelSelect
+                kind="expense_category"
+                value={categoryId}
+                onChange={setCategoryId}
+                placeholder="No category"
+              />
+            </div>
+            <div className="space-y-2 sm:col-span-2">
+              <FieldLabel className="text-sm font-semibold text-ink-2">
+                Account <span className="font-normal text-ink-3">(optional)</span>
+              </FieldLabel>
+              <LabelSelect
+                kind="account"
+                value={accountId}
+                onChange={setAccountId}
+                placeholder="No account"
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={() => canSubmit && mutation.mutate(undefined as void)}
+            disabled={!canSubmit}
+            className="btn-primary w-full h-12"
+          >
+            {mutation.isPending ? "Completing…" : "Complete goal"}
+          </button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

@@ -1,96 +1,75 @@
-import { Target, TrendingUp, ShieldCheck, ArrowRight } from "lucide-react";
+// frontend/src/Home.tsx
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { getCurrentUser } from "./api/goals";
+import { ArrowRight, Lock, Receipt, Wallet } from "lucide-react";
+
+import { getCurrentUser, loginUrl } from "@/api";
+
+const POINTS = [
+  {
+    icon: Wallet,
+    title: "Every earning keeps its own balance",
+    body: "The ₹10,000 you made building a project for Mr. John in August stays that money — with its date, its name, and a running total of what is left.",
+  },
+  {
+    icon: Receipt,
+    title: "Expenses point back at the work that paid for them",
+    body: "\"₹6,000 for a watch, spent from Project for Mr. John.\" Your history remembers which money you used, not just how much.",
+  },
+  {
+    icon: Lock,
+    title: "Goals reserve, they do not deduct",
+    body: "Set money aside for an iPhone from three different earnings. It stays where it is — it just stops being spendable.",
+  },
+];
 
 export default function Home() {
   const navigate = useNavigate();
 
+  // A live session skips the landing page entirely.
   useEffect(() => {
-    const verifyUser = async () => {
-      try {
-        await getCurrentUser();
-        navigate("/dashboard");
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      } catch (error) {
-        // Not logged in, stay on home page
-      }
-    };
-    verifyUser();
+    getCurrentUser()
+      .then(() => navigate("/dashboard"))
+      .catch(() => undefined);
   }, [navigate]);
 
-  const handleLogin = () => {
-    window.location.href = `${import.meta.env.VITE_API_BASE_URL || "http://localhost:8000"}/auth/google/login`;
-  };
-
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Abstract Background Elements */}
-      <div className="absolute top-[-10%] left-[-10%] w-[40vw] h-[40vw] rounded-full bg-[#B3C8CF]/30 blur-3xl mix-blend-multiply" />
-      <div className="absolute bottom-[-10%] right-[-10%] w-[40vw] h-[40vw] rounded-full bg-[#89A8B2]/20 blur-3xl mix-blend-multiply" />
+    <div className="min-h-screen bg-canvas flex flex-col">
+      <header className="container mx-auto px-6 py-6 flex items-center gap-2.5">
+        <span className="bg-brand p-2 rounded-xl text-brand-ink shadow-sm">
+          <Wallet className="w-5 h-5" />
+        </span>
+        <span className="font-serif text-2xl text-ink-1">Goalie</span>
+      </header>
 
-      <div className="w-full max-w-5xl z-10 flex flex-col items-center">
-        {/* Main Hero Card */}
-        <div className="glass-card p-12 md:p-20 text-center w-full max-w-3xl mx-auto flex flex-col items-center border-t-white border-l-white">
-          <div className="bg-white/60 p-4 rounded-[24px] mb-8 shadow-sm inline-block">
-            <Target className="w-12 h-12 text-[#89A8B2]" />
-          </div>
-
-          <h1 className="text-5xl md:text-6xl font-extrabold text-[#2c3e50] tracking-tight mb-6">
-            Track your goals. <br />
-            <span className="text-[#89A8B2]">Beautifully.</span>
+      <main className="flex-1 container mx-auto px-6 flex flex-col justify-center py-12">
+        <div className="max-w-3xl animate-in fade-in slide-in-from-bottom-4 duration-[--motion-slow]">
+          <h1 className="font-serif text-5xl sm:text-6xl leading-[1.05] text-ink-1 mb-5">
+            Know which money you are actually spending.
           </h1>
-
-          <p className="text-xl text-[#546e7a] mb-12 max-w-xl font-medium leading-relaxed">
-            A serene, mathematically secure ledger for your personal financial
-            milestones. Stop guessing, start visualizing.
+          <p className="text-lg text-ink-2 font-medium max-w-2xl mb-8">
+            Your bank shows one number. Goalie keeps every rupee attached to the work that
+            earned it, so a profit-and-loss sheet you can actually read builds itself.
           </p>
-
-          <button
-            onClick={handleLogin}
-            className="btn-primary text-lg px-8 py-4 w-full md:w-auto"
-          >
-            Continue with Google <ArrowRight className="w-5 h-5 ml-2" />
-          </button>
+          <a href={loginUrl()} className="btn-primary h-13 px-8 text-base inline-flex w-fit">
+            Continue with Google <ArrowRight className="w-4 h-4" />
+          </a>
         </div>
 
-        {/* Feature Highlights */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 w-full">
-          <div className="glass-card p-8 flex flex-col items-center text-center">
-            <div className="bg-[#B3C8CF]/30 p-4 rounded-2xl mb-4 text-[#4a636d]">
-              <Target className="w-6 h-6" />
+        <div className="grid md:grid-cols-3 gap-4 mt-16">
+          {POINTS.map((point, index) => (
+            <div
+              key={point.title}
+              className="glass-card glass-card-strong glass-card-hover p-6 animate-in fade-in slide-in-from-bottom-4 duration-[--motion-slow] fill-mode-both"
+              style={{ animationDelay: `calc(var(--motion-stagger) * ${index + 2})` }}
+            >
+              <point.icon className="w-6 h-6 text-brand mb-3" />
+              <h2 className="font-serif text-xl text-ink-1 mb-2">{point.title}</h2>
+              <p className="text-sm text-ink-2 font-medium leading-relaxed">{point.body}</p>
             </div>
-            <h3 className="text-lg font-bold text-[#2c3e50] mb-2">
-              Laser Focused
-            </h3>
-            <p className="text-[#546e7a] text-sm font-medium">
-              No bloat. Just you, your targets, and a beautiful ledger.
-            </p>
-          </div>
-          <div className="glass-card p-8 flex flex-col items-center text-center">
-            <div className="bg-[#B3C8CF]/30 p-4 rounded-2xl mb-4 text-[#4a636d]">
-              <TrendingUp className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-[#2c3e50] mb-2">
-              Visual Progress
-            </h3>
-            <p className="text-[#546e7a] text-sm font-medium">
-              Watch your savings grow with smooth, reactive progress tracking.
-            </p>
-          </div>
-          <div className="glass-card p-8 flex flex-col items-center text-center">
-            <div className="bg-[#B3C8CF]/30 p-4 rounded-2xl mb-4 text-[#4a636d]">
-              <ShieldCheck className="w-6 h-6" />
-            </div>
-            <h3 className="text-lg font-bold text-[#2c3e50] mb-2">
-              Secure Math
-            </h3>
-            <p className="text-[#546e7a] text-sm font-medium">
-              Asynchronous backend enforcement prevents negative balances.
-            </p>
-          </div>
+          ))}
         </div>
-      </div>
+      </main>
     </div>
   );
 }
