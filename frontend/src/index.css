@@ -1,54 +1,219 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-/* @tailwind base;
-@tailwind components; */
-@tailwind utilities;
+/* ---------------------------------------------------------------------------
+   Goalie design tokens — "warm paper & evergreen".
+   Light only, by design. No gradients anywhere: depth comes from translucency,
+   hairlines and shadow.
+   --------------------------------------------------------------------------- */
+
+:root {
+  /* Surfaces */
+  --canvas: #f4f2ed;
+  --surface: #ffffff;
+  --surface-sunk: #eae7e0;
+  --hairline: #dfdad1;
+
+  /* Ink — contrast measured against --canvas */
+  --ink-1: #1c1b19; /* 15.4:1 */
+  --ink-2: #57534b; /*  6.8:1 */
+  --ink-3: #8a857b; /*  muted labels */
+
+  /* Brand */
+  --brand: #14504a; /*  8.3:1 on canvas */
+  --brand-hover: #0f3f3a;
+  --brand-ink: #ffffff; /*  9.2:1 on brand */
+
+  /* Status — reserved roles, never reused as a series colour */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+
+  /* Motion. Tight on purpose: the app should never feel like it is waiting. */
+  --motion-fast: 120ms;
+  --motion-base: 180ms;
+  --motion-slow: 260ms;
+  --motion-stagger: 30ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* shadcn/ui token contract */
+  --radius: 1rem;
+  --background: var(--canvas);
+  --foreground: var(--ink-1);
+  --card: var(--surface);
+  --card-foreground: var(--ink-1);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink-1);
+  --primary: var(--brand);
+  --primary-foreground: var(--brand-ink);
+  --secondary: var(--surface-sunk);
+  --secondary-foreground: var(--ink-1);
+  --muted: var(--surface-sunk);
+  --muted-foreground: var(--ink-2);
+  --accent: var(--surface-sunk);
+  --accent-foreground: var(--ink-1);
+  --destructive: var(--critical);
+  --destructive-foreground: #ffffff;
+  --border: var(--hairline);
+  --input: var(--hairline);
+  --ring: var(--brand);
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-sunk: var(--surface-sunk);
+  --color-hairline: var(--hairline);
+  --color-ink-1: var(--ink-1);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-ink: var(--brand-ink);
+  --color-good: var(--good);
+  --color-warning: var(--warning);
+  --color-critical: var(--critical);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --font-sans: "Inter Tight", "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-serif: "DM Serif Display", Georgia, "Times New Roman", serif;
+
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 3px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 8px);
+}
 
 @layer base {
-  :root {
-    --background: #f1f0e8;
-    --surface: #e5e1da;
-    --surface-accent: #b3c8cf;
-    --primary: #89a8b2;
-    --destructive: #bf4646;
+  body {
+    background-color: var(--canvas);
+    color: var(--ink-1);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
   }
 
-  body {
-    background-color: var(--background);
-    /* Segoe UI priority, falling back to Apple's San Francisco */
-    font-family:
-      "Segoe UI",
-      "SF Pro Display",
-      -apple-system,
-      BlinkMacSystemFont,
-      Roboto,
-      sans-serif;
-    color: #2c3e50;
-    -webkit-font-smoothing: antialiased;
+  /* DM Serif Display ships in 400 only — there is no bold cut. Size and colour
+     carry emphasis instead, so a stray font-bold never triggers a faux-bold. */
+  .font-serif,
+  h1.font-serif,
+  h2.font-serif {
+    font-weight: 400;
+    letter-spacing: -0.01em;
+  }
+
+  /* Money must never jitter as digits change. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
   }
 }
 
 @layer components {
-  /* The Apple iOS 26 Liquid Glass Effect */
+  /* Retained from v2: the frosted-glass card. Cards carrying serif headings or
+     money use --strong, whose higher opacity keeps 400-weight serif legible. */
   .glass-card {
-    @apply bg-white/40 backdrop-blur-2xl border border-white/60 shadow-[0_8px_32px_0_rgba(137,168,178,0.15)] rounded-[32px] transition-all duration-300;
+    @apply bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[32px];
+    box-shadow: 0 8px 32px 0 rgba(20, 80, 74, 0.1);
+    transition:
+      box-shadow var(--motion-slow) var(--ease-out),
+      transform var(--motion-slow) var(--ease-out);
   }
 
-  .glass-card:hover {
-    @apply shadow-[0_12px_48px_0_rgba(137,168,178,0.25)] -translate-y-1;
+  .glass-card-strong {
+    @apply bg-white/60;
   }
 
-  /* MD3 Expressive Buttons */
+  .glass-card-hover:hover {
+    box-shadow: 0 12px 40px 0 rgba(20, 80, 74, 0.16);
+    transform: translateY(-2px);
+  }
+
   .btn-primary {
-    @apply bg-[#89A8B2] hover:bg-[#7a96a0] text-white rounded-full transition-all duration-200 active:scale-[0.97] shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2 px-6 py-3;
+    @apply bg-brand text-brand-ink rounded-full font-semibold flex items-center justify-center gap-2 px-6 py-3 shadow-md;
+    transition: all var(--motion-base) var(--ease-out);
   }
-
-  .btn-destructive {
-    @apply bg-[#BF4646] hover:bg-[#a83d3d] text-white rounded-full transition-all duration-200 active:scale-[0.97] shadow-md hover:shadow-lg font-semibold flex items-center justify-center gap-2 px-6 py-3;
+  .btn-primary:hover:not(:disabled) {
+    @apply bg-brand-hover shadow-lg;
+  }
+  .btn-primary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
   }
 
   .btn-secondary {
-    @apply bg-white/50 hover:bg-white/80 text-[#546e7a] rounded-full transition-all duration-200 active:scale-[0.97] font-semibold border border-white/60 shadow-sm flex items-center justify-center gap-2 px-6 py-3;
+    @apply bg-white/60 hover:bg-white text-ink-2 rounded-full font-semibold border border-white/70 shadow-sm flex items-center justify-center gap-2 px-6 py-3;
+    transition: all var(--motion-base) var(--ease-out);
+  }
+  .btn-secondary:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .btn-secondary:disabled {
+    @apply opacity-50 cursor-not-allowed;
+  }
+
+  .btn-destructive {
+    @apply bg-critical text-white rounded-full font-semibold shadow-md flex items-center justify-center gap-2 px-6 py-3;
+    transition: all var(--motion-base) var(--ease-out);
+  }
+  .btn-destructive:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  .field {
+    @apply h-11 rounded-2xl bg-white border border-hairline px-4 text-ink-1;
+  }
+}
+
+@layer utilities {
+  /* Modals scroll but never show a bar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+    display: none;
+  }
+
+  /* Diagonal stripe overlay marking RESERVED money. An SVG texture rather than a
+     repeating-gradient, and it doubles as the colourblind/print relief. */
+  .texture-hatch {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='6'%3E%3Cpath d='M-1 1l2-2M0 6l6-6M5 7l2-2' stroke='%23ffffff' stroke-width='1.6' stroke-opacity='0.6'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+  }
+}
+
+/* Every transform and animation is decorative here, so honouring the OS setting
+   costs nothing and the app stays fully usable. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

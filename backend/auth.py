@@ -1,15 +1,14 @@
-from http.client import responses
-
 # UPDATE - Improving url encoding
 from urllib.parse import urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Cookie
-from fastapi.responses import  RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 import requests
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from jose import jwt, JWTError
 from bson import ObjectId
 from database import users_collection
+from models import UserSettings
 
 # UPDATE - dotenv package fix
 import os
@@ -36,7 +35,7 @@ def create_jwt (user: dict):
     payload = {
         "sub": str(user["_id"]),
         "email": user["email"],
-        "exp": datetime.utcnow() + timedelta(minutes=300),
+        "exp": datetime.now(timezone.utc) + timedelta(minutes=300),
     }
     return jwt.encode(
         payload,
@@ -123,6 +122,11 @@ async def google_callback (code: str):
         user_doc["_id"] = result.inserted_id
         existing = user_doc
 
+    # Seeded here so a brand-new account has usable category lists straight away.
+    from labels import seed_default_labels
+
+    await seed_default_labels(str(existing["_id"]))
+
     jwt_token = create_jwt(existing)
     # response = RedirectResponse(url="http://localhost:5173/dashboard")
     response = RedirectResponse(url=f"{FRONTEND_URL}/dashboard")
@@ -136,23 +140,46 @@ async def google_callback (code: str):
 
     return response
 
+DEFAULT_SETTINGS = {"currency": "INR", "locale": "en-IN"}
+
+
+def _user_out(db_user: dict) -> dict:
+    settings = {**DEFAULT_SETTINGS, **(db_user.get("settings") or {})}
+    return {
+        "id": str(db_user["_id"]),
+        "email": db_user["email"],
+        "name": db_user.get("name"),
+        "settings": settings,
+    }
+
+
 @router.get("/me")
 async def get_me(user = Depends(get_current_user)):
     db_user = await users_collection.find_one({"_id": ObjectId(user["sub"])})
 
     if not db_user:
         raise HTTPException(status_code=404, detail="User not found")
-    return {
-        "id": str(db_user["_id"]),
-        "email": db_user["email"],
-        "name": db_user.get("name"),
-    }
+    return _user_out(db_user)
+
+
+@router.put("/settings")
+async def update_settings(payload: UserSettings, user = Depends(get_current_user)):
+    """Currency and locale are display-only: changing them never converts stored amounts."""
+    await users_collection.update_one(
+        {"_id": ObjectId(user["sub"])},
+        {"$set": {"settings": payload.model_dump()}},
+    )
+    db_user = await users_collection.find_one({"_id": ObjectId(user["sub"])})
+    if not db_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _user_out(db_user)
 
 
 # NEW - Logout endpoint
 @router.post("/logout")
 async def logout():
-    # response = RedirectResponse(url="http://localhost:5173/")
-    response = RedirectResponse(url=f"{FRONTEND_URL}/")
-    response.delete_cookie(key="jwt_token", secure=True, samesite="none")
+    # Returns JSON rather than a redirect so the SPA can navigate itself; the delete
+    # must repeat the flags the cookie was set with or the browser ignores it.
+    response = JSONResponse(content={"message": "Logged out."})
+    response.delete_cookie(key="jwt_token", path="/", secure=True, samesite="none")
     return response
