@@ -38,7 +38,7 @@ interface StatTileProps {
 
 export function StatTile({ label, minor, format, hint, accent, icon }: StatTileProps) {
   return (
-    <div className="glass-card glass-card-strong glass-card-hover p-5 flex flex-col gap-1">
+    <div className="glass-card glass-card-strong glass-card-hover content-card min-w-0 p-5 flex flex-col gap-1.5">
       <div className="flex items-center gap-2 text-ink-2">
         {icon}
         <span className="text-xs font-semibold uppercase tracking-wider">{label}</span>
@@ -48,7 +48,7 @@ export function StatTile({ label, minor, format, hint, accent, icon }: StatTileP
         minor={minor}
         format={format}
         compact
-        className="font-serif text-3xl sm:text-4xl leading-tight"
+        className="stat-amount font-serif"
       />
       {hint && (
         <span className="text-xs font-medium text-ink-3" style={accent ? { color: accent } : undefined}>
@@ -123,7 +123,7 @@ export function SegmentedBar({
       {showLegend && visible.length > 0 && (
         <div className="flex flex-wrap gap-x-4 gap-y-1.5">
           {visible.map((segment) => (
-            <div key={segment.key} className="flex items-center gap-1.5 text-xs">
+            <div key={segment.key} className="flex min-w-0 items-center gap-1.5 text-xs">
               <span
                 className={cn("w-2.5 h-2.5 rounded-full shrink-0", segment.hatched && "texture-hatch")}
                 style={{ backgroundColor: segment.colour }}
@@ -132,7 +132,7 @@ export function SegmentedBar({
               <MoneyText
                 minor={segment.amount}
                 format={format}
-                className="font-semibold text-ink-1"
+                className="font-semibold text-ink-1 wrap-anywhere"
               />
             </div>
           ))}
@@ -153,24 +153,27 @@ export function SourceChip({
   colour,
   hatched,
   className,
+  tone,
 }: {
   name: string;
   colour: string;
   hatched?: boolean;
   className?: string;
+  tone?: "income";
 }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full bg-white/70 border border-white/80 px-2.5 py-0.5 text-xs font-semibold text-ink-2",
+        "inline-flex max-w-full items-center gap-1.5 rounded-full bg-white/70 border border-white/80 px-2.5 py-0.5 text-xs font-semibold text-ink-2",
         className,
       )}
+      data-tone={tone}
     >
       <span
         className={cn("w-2 h-2 rounded-full shrink-0", hatched && "texture-hatch")}
         style={{ backgroundColor: colour }}
       />
-      {name}
+      <span className="min-w-0 wrap-anywhere">{name}</span>
     </span>
   );
 }
@@ -189,10 +192,10 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="glass-card glass-card-strong py-16 px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-300">
-      <div className="text-brand/40 mb-4">{icon}</div>
-      <h3 className="font-serif text-2xl text-ink-1 mb-2">{title}</h3>
-      <p className="text-ink-2 font-medium max-w-md mb-6">{description}</p>
+    <div className="glass-card glass-card-strong py-9 md:py-16 px-4 md:px-6 flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-(--motion-slow)">
+      <div className="text-brand/55 mb-3 md:mb-4 max-md:[&>svg]:size-11">{icon}</div>
+      <h3 className="section-heading font-serif text-ink-1 mb-2">{title}</h3>
+      <p className="text-sm md:text-base text-ink-2 font-medium max-w-md mb-4 md:mb-6">{description}</p>
       {action}
     </div>
   );

@@ -61,13 +61,14 @@ export function GoalsPage() {
         }
       />
 
-      <div className="inline-flex items-center gap-1 bg-white/50 rounded-full p-1 border border-white/70 mb-6">
+      <div className="inline-flex max-w-full items-center gap-0.5 md:gap-1 bg-white/50 rounded-full p-1 border border-white/70 mb-5 md:mb-6">
         {TABS.map((option) => (
           <button
-            key={option.value}
+              key={option.value}
+              aria-pressed={tab === option.value}
             onClick={() => setTab(option.value)}
             className={cn(
-              "px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-[--motion-base]",
+              "min-h-11 md:min-h-0 px-2.5 md:px-4 py-1.5 rounded-full text-sm font-semibold transition-all duration-(--motion-base)",
               tab === option.value
                 ? "bg-brand text-brand-ink shadow-sm"
                 : "text-ink-2 hover:bg-white",
@@ -125,10 +126,7 @@ export function GoalsPage() {
 
       <GoalForm
         open={formOpen}
-        onOpenChange={(next) => {
-          setFormOpen(next);
-          if (!next) setEditing(null);
-        }}
+        onOpenChange={setFormOpen}
         format={format}
         goal={editing}
       />

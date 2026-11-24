@@ -11,15 +11,8 @@ import { useLedgerMutation } from "@/hooks/queries";
 import { parseMoneyInput, minorToInput, type MoneyFormat } from "@/lib/money";
 import { toDraftSplits, toSplits, type DraftSplit } from "@/lib/splits";
 import { IncomePicker, LabelSelect, MoneyInput } from "@/components/form-controls";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { FloatingInput, FloatingTextarea, RequiredMark } from "@/components/floating-field";
+import { RecordFormDialog } from "@/components/record-form-dialog";
 
 type EntryKindLite = "income" | "expense";
 
@@ -42,56 +35,41 @@ interface EntryFormProps {
   entry?: Entry | null;
 }
 
-export function EntryForm({
-  kind,
-  open,
-  onOpenChange,
-  incomes,
-  format,
-  entry,
-}: EntryFormProps) {
+export function EntryForm({ open, onOpenChange, ...props }: EntryFormProps) {
+  const title = props.entry
+    ? `Edit ${props.kind}`
+    : props.kind === "expense" ? "Record an expense" : "Record income";
+
+  return (
+    <RecordFormDialog open={open} onOpenChange={onOpenChange} title={title}>
+      <EntryFields key={`${props.kind}:${props.entry?.id ?? "new"}`} {...props} onOpenChange={onOpenChange} />
+    </RecordFormDialog>
+  );
+}
+
+// The dialog mounts a fresh draft on open; edit values are ready on the first paint.
+function EntryFields({ kind, onOpenChange, incomes, format, entry }: Omit<EntryFormProps, "open">) {
   const isEdit = Boolean(entry);
   const isExpense = kind === "expense";
 
-  const [description, setDescription] = useState("");
-  const [date, setDate] = useState(todayInputValue);
-  const [amount, setAmount] = useState("");
-  const [splits, setSplits] = useState<DraftSplit[]>([]);
-  const [categoryId, setCategoryId] = useState<string | null>(null);
-  const [accountId, setAccountId] = useState<string | null>(null);
-  const [note, setNote] = useState("");
+  const [description, setDescription] = useState(entry?.description ?? "");
+  const [date, setDate] = useState(() => entry?.date.slice(0, 10) ?? todayInputValue());
+  const [amount, setAmount] = useState(() => entry ? minorToInput(entry.total) : "");
+  const firstIncomeId = isExpense && !entry ? incomes.find((income) => income.remaining > 0)?.id : undefined;
+  const [splits, setSplits] = useState<DraftSplit[]>(() => {
+    if (entry) return toDraftSplits(entry.splits);
+    return firstIncomeId ? [{ incomeId: firstIncomeId, text: "" }] : [];
+  });
+  const [categoryId, setCategoryId] = useState<string | null>(entry?.categoryId ?? null);
+  const [accountId, setAccountId] = useState<string | null>(entry?.accountId ?? null);
+  const [note, setNote] = useState(entry?.note ?? "");
 
-  // Re-seed whenever the dialog opens, so an edit never shows the previous entry.
+  // Also seed the first row if incomes arrive after an expense form has opened.
   useEffect(() => {
-    if (!open) return;
-    if (entry) {
-      setDescription(entry.description);
-      setDate(entry.date.slice(0, 10));
-      setAmount(minorToInput(entry.total));
-      setSplits(toDraftSplits(entry.splits));
-      setCategoryId(entry.categoryId ?? null);
-      setAccountId(entry.accountId ?? null);
-      setNote(entry.note ?? "");
-    } else {
-      setDescription("");
-      setDate(todayInputValue());
-      setAmount("");
-      setSplits([]);
-      setCategoryId(null);
-      setAccountId(null);
-      setNote("");
+    if (firstIncomeId) {
+      setSplits((current) => current.length > 0 ? current : [{ incomeId: firstIncomeId, text: "" }]);
     }
-  }, [open, entry]);
-
-  // An expense needs a starting row; income needs none.
-  useEffect(() => {
-    if (!open || !isExpense || entry) return;
-    setSplits((current) => {
-      if (current.length > 0) return current;
-      const first = incomes.find((income) => income.remaining > 0);
-      return first ? [{ incomeId: first.id, text: "" }] : [];
-    });
-  }, [open, isExpense, entry, incomes]);
+  }, [firstIncomeId]);
 
   const parsedAmount = parseMoneyInput(amount, format) ?? 0;
   const preparedSplits = toSplits(splits, format);
@@ -132,124 +110,72 @@ export function EntryForm({
     (isExpense ? preparedSplits.length > 0 : parsedAmount > 0) &&
     !mutation.isPending;
 
-  const title = isEdit
-    ? `Edit ${isExpense ? "expense" : "income"}`
-    : isExpense
-      ? "Record an expense"
-      : "Record income";
+  const dateField = (
+    <FloatingInput label="Date" type="date" required value={date} onChange={(event) => setDate(event.target.value)} />
+  );
+  const categoryField = (
+    <LabelSelect
+      label="Category"
+      kind={isExpense ? "expense_category" : "income_category"}
+      value={categoryId}
+      onChange={setCategoryId}
+    />
+  );
+  const accountField = (
+    <LabelSelect label="Account" kind="account" value={accountId} onChange={setAccountId} />
+  );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg max-h-[88vh] overflow-y-auto no-scrollbar rounded-[32px] bg-canvas border-hairline p-6">
-        <DialogHeader>
-          <DialogTitle className="font-serif text-3xl text-ink-1">{title}</DialogTitle>
-        </DialogHeader>
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (canSubmit) mutation.mutate(undefined as void);
+      }}
+      className="record-form"
+    >
+      <FloatingInput
+        label={isExpense ? "What did you buy?" : "How did you earn it?"}
+        value={description}
+        onChange={(event) => setDescription(event.target.value)}
+        placeholder={isExpense ? "Watch" : "Project for Mr. John"}
+        required
+      />
 
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            if (canSubmit) mutation.mutate(undefined as void);
-          }}
-          className="space-y-5 pt-2"
-        >
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-ink-2">
-              {isExpense ? "What did you buy?" : "How did you earn it?"}
-            </Label>
-            <Input
-              autoFocus
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
-              placeholder={isExpense ? "Watch" : "Project for Mr. John"}
-              className="field"
+      {isExpense ? (
+        <>
+          <fieldset className="min-w-0">
+            <legend className="mb-2 text-sm font-semibold text-ink-2">
+              Spent from<RequiredMark /><span className="sr-only"> (required)</span>
+            </legend>
+            <IncomePicker
+              incomes={incomes}
+              splits={splits}
+              onChange={setSplits}
+              format={format}
+              locale={format.locale}
+              entryDate={date}
+              expenseToolbar
             />
+          </fieldset>
+          <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+            {dateField}
+            {categoryField}
+            <div className="sm:col-span-2">{accountField}</div>
           </div>
+        </>
+      ) : (
+        <div className="record-income-grid">
+          <MoneyInput label="Amount" required value={amount} onChange={setAmount} format={format} />
+          {categoryField}
+          {dateField}
+          {accountField}
+        </div>
+      )}
 
-          {isExpense ? (
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-ink-2">Spent from</Label>
-              <IncomePicker
-                incomes={incomes}
-                splits={splits}
-                onChange={setSplits}
-                format={format}
-                locale={format.locale}
-                entryDate={date}
-              />
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-ink-2">Amount earned</Label>
-              <MoneyInput value={amount} onChange={setAmount} format={format} />
-            </div>
-          )}
-
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-ink-2">
-                {isExpense ? "Date" : "Date earned"}
-              </Label>
-              <Input
-                type="date"
-                value={date}
-                onChange={(event) => setDate(event.target.value)}
-                className="field"
-              />
-              {!isExpense && (
-                <p className="text-xs text-ink-3">
-                  When you earned it — this is how you will recognise the money later.
-                </p>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold text-ink-2">
-                {isExpense ? "Category" : "Income category"}
-              </Label>
-              <LabelSelect
-                kind={isExpense ? "expense_category" : "income_category"}
-                value={categoryId}
-                onChange={setCategoryId}
-                placeholder="None"
-              />
-              {!isExpense && (
-                <p className="text-xs text-ink-3">Sets this income&rsquo;s colour.</p>
-              )}
-            </div>
-
-            <div className="space-y-2 sm:col-span-2">
-              <Label className="text-sm font-semibold text-ink-2">
-                Account <span className="font-normal text-ink-3">(optional)</span>
-              </Label>
-              <LabelSelect
-                kind="account"
-                value={accountId}
-                onChange={setAccountId}
-                placeholder="No account"
-              />
-              <p className="text-xs text-ink-3">
-                {isExpense ? "Which account you paid from." : "Where this cash landed."}
-              </p>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label className="text-sm font-semibold text-ink-2">
-              Note <span className="font-normal text-ink-3">(optional)</span>
-            </Label>
-            <Textarea
-              value={note}
-              onChange={(event) => setNote(event.target.value)}
-              rows={2}
-              className="rounded-2xl bg-white border-hairline resize-none"
-            />
-          </div>
-
-          <button type="submit" disabled={!canSubmit} className="btn-primary w-full h-12">
-            {mutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Record"}
-          </button>
-        </form>
-      </DialogContent>
-    </Dialog>
+      <FloatingTextarea label="Note" value={note} onChange={(event) => setNote(event.target.value)} rows={2} />
+      <button type="submit" disabled={!canSubmit} className="btn-primary w-full h-12">
+        {mutation.isPending ? "Saving…" : isEdit ? "Save changes" : "Record"}
+      </button>
+    </form>
   );
 }

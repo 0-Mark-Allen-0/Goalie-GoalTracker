@@ -25,7 +25,7 @@ function App() {
       </Routes>
 
       {/* Previously missing, which meant every toast in the app silently did nothing. */}
-      <Toaster position="bottom-right" richColors closeButton />
+      <Toaster position="bottom-right" theme="light" richColors closeButton />
     </Router>
   );
 }

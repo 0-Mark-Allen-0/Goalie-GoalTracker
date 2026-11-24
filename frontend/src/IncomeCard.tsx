@@ -1,7 +1,7 @@
 // frontend/src/IncomeCard.tsx
 // One earning event — a lot. It has its own date and its own balance, and expenses
 // are spent from it by name: "the ₹10,000 Mr. John paid me on 14 August".
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { MoreVertical, Pencil, Trash2 } from "lucide-react";
 
 import { deleteEntry } from "@/api";
@@ -9,8 +9,9 @@ import type { Income, Label } from "@/api/types";
 import { useLedgerMutation } from "@/hooks/queries";
 import { incomeColour, longDate } from "@/lib/income";
 import { formatMoney, type MoneyFormat } from "@/lib/money";
-import { SPENT_COLOUR } from "@/lib/palette";
+import { SOURCE_COLOURS, SPENT_COLOUR } from "@/lib/palette";
 import { staggerStyle } from "@/lib/motion";
+import { cn } from "@/lib/utils";
 import { MoneyText, SegmentedBar } from "@/components/data-display";
 import {
   AlertDialog,
@@ -34,15 +35,18 @@ interface IncomeCardProps {
   labels: Map<string, Label>;
   format: MoneyFormat;
   index?: number;
+  categoryTint?: boolean;
   onEdit: (income: Income) => void;
 }
 
-export function IncomeCard({ income, labels, format, index = 0, onEdit }: IncomeCardProps) {
+export function IncomeCard({ income, labels, format, index = 0, categoryTint = false, onEdit }: IncomeCardProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const colour = incomeColour(income, labels);
   const category = income.categoryId ? labels.get(income.categoryId) : undefined;
   const account = income.accountId ? labels.get(income.accountId) : undefined;
   const committed = income.spent + income.reserved;
+  const showCategoryColour = categoryTint && category?.kind === "income_category"
+    && SOURCE_COLOURS.some((slot) => slot.slot === category.colourSlot);
 
   const deleteMutation = useLedgerMutation(
     async () => (await deleteEntry(income.id)).data,
@@ -52,8 +56,15 @@ export function IncomeCard({ income, labels, format, index = 0, onEdit }: Income
   return (
     <>
       <div
-        className="glass-card glass-card-strong glass-card-hover p-5 animate-in fade-in slide-in-from-bottom-4 duration-[--motion-slow] fill-mode-both"
-        style={staggerStyle(index)}
+        className={cn(
+          "glass-card glass-card-strong glass-card-hover content-card min-w-0 p-5 animate-in fade-in slide-in-from-bottom-4 duration-(--motion-slow) fill-mode-both",
+          categoryTint && "transaction-glass",
+        )}
+        data-tone={categoryTint ? "category" : undefined}
+        style={{
+          ...staggerStyle(index),
+          ...(showCategoryColour ? ({ "--transaction-accent": colour } as CSSProperties) : {}),
+        }}
       >
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="min-w-0 flex-1">
@@ -62,12 +73,12 @@ export function IncomeCard({ income, labels, format, index = 0, onEdit }: Income
                 className="w-3 h-3 rounded-full shrink-0"
                 style={{ backgroundColor: colour }}
               />
-              <h3 className="font-serif text-2xl text-ink-1 truncate">
+              <h3 className="card-heading font-serif text-ink-1 min-w-0 wrap-anywhere md:truncate">
                 {income.description}
               </h3>
             </div>
             {/* The date is not decoration — it is half of this lot's identity. */}
-            <p className="text-sm font-semibold text-ink-2 mt-1 tabular">
+            <p className="text-xs md:text-sm font-semibold text-ink-2 mt-1 tabular wrap-anywhere">
               {longDate(income.date, format.locale)}
               {category && <span className="text-ink-3"> · {category.name}</span>}
               {account && <span className="text-ink-3"> · into {account.name}</span>}
@@ -78,7 +89,7 @@ export function IncomeCard({ income, labels, format, index = 0, onEdit }: Income
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={`Manage ${income.description}`}
-                className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
+                className="shrink-0 size-11 md:size-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -97,13 +108,13 @@ export function IncomeCard({ income, labels, format, index = 0, onEdit }: Income
           </DropdownMenu>
         </div>
 
-        <div className="flex items-baseline gap-2 mb-4">
+        <div className="flex max-md:flex-wrap items-baseline gap-x-2 gap-y-0.5 mb-4">
           <MoneyText
             minor={income.remaining}
             format={format}
-            className="font-serif text-3xl text-ink-1"
+            className="amount-heading font-serif text-ink-1"
           />
-          <span className="text-sm font-semibold text-ink-3 tabular">
+          <span className="text-sm font-semibold text-ink-3 tabular wrap-anywhere">
             left of {formatMoney(income.total, format)}
           </span>
         </div>

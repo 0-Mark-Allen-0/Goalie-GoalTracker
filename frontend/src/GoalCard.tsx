@@ -131,14 +131,14 @@ export function GoalCard({
     <>
       <div
         className={cn(
-          "glass-card glass-card-strong glass-card-hover p-5 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-[--motion-slow] fill-mode-both",
+          "glass-card glass-card-strong glass-card-hover content-card min-w-0 p-5 flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-(--motion-slow) fill-mode-both",
           !isActive && "opacity-90",
         )}
         style={staggerStyle(index)}
       >
         <div className="flex items-start justify-between gap-3 mb-1">
           <div className="min-w-0">
-            <h3 className="font-serif text-2xl text-ink-1 truncate">{goal.name}</h3>
+            <h3 className="card-heading font-serif text-ink-1 wrap-anywhere md:truncate">{goal.name}</h3>
             {goal.description && (
               <p className="text-sm text-ink-2 font-medium line-clamp-2 mt-0.5">
                 {goal.description}
@@ -150,7 +150,7 @@ export function GoalCard({
             <DropdownMenuTrigger asChild>
               <button
                 aria-label={`Manage ${goal.name}`}
-                className="shrink-0 w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
+                className="shrink-0 size-11 md:size-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
               >
                 <MoreVertical className="w-4 h-4" />
               </button>
@@ -187,13 +187,13 @@ export function GoalCard({
           </DropdownMenu>
         </div>
 
-        <div className="flex items-baseline gap-2 mt-3 mb-3">
+        <div className="flex max-md:flex-wrap items-baseline gap-x-2 gap-y-0.5 mt-3 mb-3">
           <MoneyText
             minor={goal.saved}
             format={format}
-            className="font-serif text-3xl text-ink-1"
+            className="amount-heading font-serif text-ink-1"
           />
-          <span className="text-sm font-semibold text-ink-3 tabular">
+          <span className="text-sm font-semibold text-ink-3 tabular wrap-anywhere">
             of {formatMoney(goal.targetValue, format)}
           </span>
         </div>
@@ -232,14 +232,14 @@ export function GoalCard({
           <div className="flex flex-wrap gap-2 mt-auto">
             <button
               onClick={() => setReserveOpen(true)}
-              className="btn-primary h-10 px-4 text-sm flex-1"
+              className="btn-primary h-11 md:h-10 px-4 text-sm flex-1"
             >
               <Plus className="w-4 h-4" /> Reserve
             </button>
             <button
               onClick={() => setReleaseOpen(true)}
               disabled={goal.saved === 0}
-              className="btn-secondary h-10 px-4 text-sm"
+              className="btn-secondary h-11 md:h-10 px-4 text-sm"
             >
               <Minus className="w-4 h-4" /> Release
             </button>
@@ -247,7 +247,7 @@ export function GoalCard({
               onClick={() => setCompleteOpen(true)}
               disabled={goal.saved === 0}
               className={cn(
-                "h-10 px-4 text-sm rounded-full font-semibold flex items-center justify-center gap-2 transition-all duration-[--motion-base] border",
+                "h-11 md:h-10 px-4 text-sm rounded-full font-semibold flex items-center justify-center gap-2 transition-all duration-(--motion-base) border",
                 isFunded
                   ? "bg-good text-white border-good shadow-md hover:brightness-105 active:scale-[0.97]"
                   : "bg-white/60 text-ink-2 border-white/70 hover:bg-white active:scale-[0.97]",

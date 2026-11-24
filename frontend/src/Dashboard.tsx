@@ -123,7 +123,7 @@ export function Dashboard() {
         />
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-10">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 md:gap-4 mb-7 md:mb-10">
             <StatTile
               label="Unspent"
               minor={totals.unspent}
@@ -152,12 +152,12 @@ export function Dashboard() {
             />
           </div>
 
-          <section className="mb-10">
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="font-serif text-3xl text-ink-1">Money still unspent</h2>
+          <section className="mb-7 md:mb-10">
+            <div className="flex items-center justify-between gap-2.5 md:gap-4 mb-3 md:mb-4">
+              <h2 className="section-heading-large font-serif text-ink-1">Money still unspent</h2>
               <button
                 onClick={() => navigate("/income")}
-                className="btn-secondary h-10 px-4 text-sm"
+                className="btn-secondary h-11 md:h-10 px-3 md:px-4 text-sm shrink-0"
               >
                 All income
               </button>
@@ -186,18 +186,18 @@ export function Dashboard() {
           </section>
 
           <section>
-            <div className="flex items-center justify-between gap-4 mb-4">
-              <h2 className="font-serif text-3xl text-ink-1">Goals</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2.5 md:gap-4 mb-3 md:mb-4">
+              <h2 className="section-heading-large font-serif text-ink-1">Goals</h2>
               <div className="flex gap-2">
                 {activeGoals.length > 0 && (
                   <button
                     onClick={() => navigate("/goals")}
-                    className="btn-secondary h-10 px-4 text-sm"
+                    className="btn-secondary h-11 md:h-10 px-3 md:px-4 text-sm"
                   >
                     View all
                   </button>
                 )}
-                <button onClick={() => setGoalOpen(true)} className="btn-secondary h-10 px-4 text-sm">
+                <button onClick={() => setGoalOpen(true)} className="btn-secondary h-11 md:h-10 px-3 md:px-4 text-sm">
                   <Plus className="w-4 h-4" /> New goal
                 </button>
               </div>
@@ -237,10 +237,7 @@ export function Dashboard() {
       <EntryForm
         kind="income"
         open={incomeOpen}
-        onOpenChange={(next) => {
-          setIncomeOpen(next);
-          if (!next) setEditingEntry(null);
-        }}
+        onOpenChange={setIncomeOpen}
         incomes={incomes}
         format={format}
         entry={editingEntry}
