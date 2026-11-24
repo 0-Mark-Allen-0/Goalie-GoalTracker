@@ -1,6 +1,6 @@
 // frontend/src/components/form-controls.tsx
 // Money input, label picker, and the income picker that answers "spent from what?".
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { Plus, Split as SplitIcon, X } from "lucide-react";
 
 import { createLabel } from "@/api";
@@ -24,6 +24,7 @@ import {
 import { SOURCE_COLOURS, colourForSlot, nextFreeSlot } from "@/lib/palette";
 import type { DraftSplit } from "@/lib/splits";
 import { cn } from "@/lib/utils";
+import { FloatingInput, FloatingSelectTrigger } from "@/components/floating-field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -54,6 +55,11 @@ interface MoneyInputProps {
   className?: string;
   max?: number;
   maxLabel?: string;
+  label?: string;
+  required?: boolean;
+  invalid?: boolean;
+  describedBy?: string;
+  inputLabel?: string;
 }
 
 /**
@@ -70,26 +76,50 @@ export function MoneyInput({
   className,
   max,
   maxLabel,
+  label,
+  required,
+  invalid,
+  describedBy,
+  inputLabel,
 }: MoneyInputProps) {
   const minor = parseMoneyInput(value, format);
   const compact = minor !== null ? formatMoneyCompact(minor, format) : null;
   const exact = minor !== null ? formatMoney(minor, format) : null;
   const overMax = minor !== null && max !== undefined && minor > max;
+  const maxErrorId = useId();
+  const descriptionIds = [describedBy, overMax && maxLabel ? maxErrorId : undefined].filter(Boolean).join(" ") || undefined;
 
   return (
     <div className="space-y-1.5">
-      <Input
-        inputMode="decimal"
-        autoFocus={autoFocus}
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className={cn(
-          "field tabular text-lg font-semibold",
-          overMax && "border-critical text-critical",
-          className,
-        )}
-      />
+      {label ? (
+        <FloatingInput
+          label={label}
+          required={required}
+          aria-invalid={invalid || overMax || undefined}
+          aria-describedby={descriptionIds}
+          inputMode="decimal"
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn("tabular font-semibold", className)}
+        />
+      ) : (
+        <Input
+          aria-label={inputLabel}
+          aria-invalid={overMax || undefined}
+          aria-describedby={descriptionIds}
+          inputMode="decimal"
+          autoFocus={autoFocus}
+          value={value}
+          placeholder={placeholder}
+          onChange={(event) => onChange(event.target.value)}
+          className={cn(
+            "field tabular text-lg font-semibold",
+            overMax && "border-critical text-critical",
+            className,
+          )}
+        />
+      )}
       {minor !== null && (
         <p
           className={cn(
@@ -102,7 +132,7 @@ export function MoneyInput({
         </p>
       )}
       {overMax && maxLabel && (
-        <p className="text-xs font-semibold text-critical pl-1">{maxLabel}</p>
+        <p id={maxErrorId} className="text-xs font-semibold text-critical pl-1">{maxLabel}</p>
       )}
     </div>
   );
@@ -151,6 +181,7 @@ interface LabelSelectProps {
   value: string | null;
   onChange: (value: string | null) => void;
   placeholder?: string;
+  label?: string;
 }
 
 /**
@@ -158,14 +189,18 @@ interface LabelSelectProps {
  * records where cash landed, and nobody should be forced to remember that to log an
  * expense.
  */
-export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectProps) {
+export function LabelSelect({ kind, value, onChange, placeholder, label }: LabelSelectProps) {
   const { data: labels = [] } = useLabels(kind);
   const [creating, setCreating] = useState(false);
   const [draft, setDraft] = useState("");
   const [slot, setSlot] = useState(0);
+  const [recentLabel, setRecentLabel] = useState<LabelModel | null>(null);
 
   const noun = KIND_NOUN[kind];
   const coloured = kind === "income_category";
+  const options = recentLabel && !labels.some((option) => option.id === recentLabel.id)
+    ? [...labels, recentLabel]
+    : labels;
 
   const createMutation = useSimpleMutation(
     async (name: string) =>
@@ -174,6 +209,8 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
     {
       successMessage: "Added.",
       onSuccess: (created: LabelModel) => {
+        // Keep an option for the selected ID while the labels query refreshes.
+        setRecentLabel(created);
         onChange(created.id);
         setCreating(false);
         setDraft("");
@@ -186,22 +223,32 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
       <Select
         value={value ?? NONE}
         onValueChange={(next) => {
+          // Radix's hidden native select can emit an empty value while its
+          // options are registering. Only the explicit None item clears a label.
+          if (!next) return;
           if (next === NEW) {
-            setSlot(nextFreeSlot(labels.map((label) => label.colourSlot)));
+            setSlot(nextFreeSlot(options.map((label) => label.colourSlot)));
             setCreating(true);
             return;
           }
           onChange(next === NONE ? null : next);
         }}
       >
-        <SelectTrigger className="field w-full">
-          <SelectValue placeholder={placeholder} />
-        </SelectTrigger>
-        <SelectContent className="rounded-2xl border-hairline bg-white">
+        {label ? (
+          <FloatingSelectTrigger label={label} filled={value !== null} />
+        ) : (
+          <SelectTrigger className="field w-full">
+            <SelectValue placeholder={placeholder} />
+          </SelectTrigger>
+        )}
+        <SelectContent className="rounded-2xl border-hairline bg-white" align="start">
           <SelectItem value={NONE}>
             <span className="text-ink-3">No {noun}</span>
           </SelectItem>
-          {labels.map((label) => (
+          {value && !options.some((option) => option.id === value) && (
+            <SelectItem value={value} disabled>Unavailable {noun}</SelectItem>
+          )}
+          {options.map((label) => (
             <SelectItem key={label.id} value={label.id}>
               <span className="flex items-center gap-2">
                 {coloured && (
@@ -210,7 +257,7 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
                     style={{ backgroundColor: colourForSlot(label.colourSlot) }}
                   />
                 )}
-                {label.name}
+                <span className="min-w-0 truncate">{label.name}</span>
               </span>
             </SelectItem>
           ))}
@@ -221,7 +268,7 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
       </Select>
 
       <Dialog open={creating} onOpenChange={setCreating}>
-        <DialogContent className="sm:max-w-sm max-h-[88vh] overflow-y-auto no-scrollbar rounded-[32px] bg-canvas border-hairline p-6">
+        <DialogContent aria-describedby={undefined} className="sm:max-w-sm max-h-[88dvh] overflow-y-auto no-scrollbar rounded-[32px] bg-canvas border-hairline p-6">
           <DialogHeader>
             <DialogTitle className="font-serif text-2xl text-ink-1">New {noun}</DialogTitle>
           </DialogHeader>
@@ -229,11 +276,13 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
             className="space-y-4 pt-2"
             onSubmit={(event) => {
               event.preventDefault();
+              event.stopPropagation();
               if (draft.trim()) createMutation.mutate(draft.trim());
             }}
           >
-            <Input
-              autoFocus
+            <FloatingInput
+              label="Name"
+              required
               value={draft}
               onChange={(event) => setDraft(event.target.value)}
               placeholder={
@@ -243,7 +292,6 @@ export function LabelSelect({ kind, value, onChange, placeholder }: LabelSelectP
                     ? "e.g. Electronics"
                     : "e.g. HDFC Savings"
               }
-              className="field"
             />
             {coloured && (
               <div className="space-y-2">
@@ -277,6 +325,8 @@ interface IncomePickerProps {
   extraAllowance?: Record<string, number>;
   /** Warns when the entry is dated before the income it draws on. */
   entryDate?: string;
+  /** Expense recording puts its allocation actions above the existing rows. */
+  expenseToolbar?: boolean;
 }
 
 /**
@@ -295,6 +345,7 @@ export function IncomePicker({
   locale,
   extraAllowance,
   entryDate,
+  expenseToolbar = false,
 }: IncomePickerProps) {
   const [sort, setSort] = useState<IncomeSort>("newest");
   const { data: categoryLabels = [] } = useLabels("income_category");
@@ -336,6 +387,16 @@ export function IncomePicker({
     0,
   );
   const nextFree = options.find((income) => !selectedIds.has(income.id));
+  const addSplit = () => {
+    if (nextFree) onChange([...splits, { incomeId: nextFree.id, text: "" }]);
+  };
+  const sortItems = (
+    <SelectContent className="rounded-2xl border-hairline bg-white" align="start">
+      {INCOME_SORTS.map((option) => (
+        <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
+      ))}
+    </SelectContent>
+  );
 
   if (options.length === 0) {
     return (
@@ -348,22 +409,26 @@ export function IncomePicker({
 
   return (
     <div className="space-y-3">
-      {options.length > 1 && (
+      {expenseToolbar ? (
+        <div className="grid grid-cols-2 items-start gap-2.5">
+          <Select value={sort} onValueChange={(next) => setSort(next as IncomeSort)}>
+            <FloatingSelectTrigger label="Sort" filled />
+            {sortItems}
+          </Select>
+          <button type="button" disabled={!nextFree} onClick={addSplit} className="btn-secondary allocation-add">
+            <SplitIcon className="size-4 shrink-0" aria-hidden="true" /> Add Income
+          </button>
+        </div>
+      ) : options.length > 1 && (
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold uppercase tracking-wider text-ink-3 shrink-0">
             Sort
           </span>
           <Select value={sort} onValueChange={(next) => setSort(next as IncomeSort)}>
-            <SelectTrigger className="field h-9 flex-1">
+            <SelectTrigger aria-label="Sort incomes" className="field h-9 min-w-0 flex-1">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="rounded-2xl border-hairline bg-white">
-              {INCOME_SORTS.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
+            {sortItems}
           </Select>
         </div>
       )}
@@ -378,14 +443,14 @@ export function IncomePicker({
         return (
           <div
             key={index}
-            className="rounded-2xl bg-white/70 border border-white/80 p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-[--motion-base]"
+            className="rounded-2xl bg-white/70 border border-white/80 p-3 space-y-2 animate-in fade-in slide-in-from-top-2 duration-(--motion-base)"
           >
             <div className="flex items-center gap-2">
               <Select
                 value={split.incomeId}
                 onValueChange={(next) => update(index, { incomeId: next })}
               >
-                <SelectTrigger className="field flex-1">
+                <SelectTrigger aria-label={`Income source ${index + 1}`} className="field min-w-0 flex-1">
                   <SelectValue placeholder="Choose an income" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-hairline bg-white max-h-72">
@@ -424,6 +489,7 @@ export function IncomePicker({
             </div>
 
             <MoneyInput
+              inputLabel={`Amount from income source ${index + 1}`}
               value={split.text}
               onChange={(text) => update(index, { text })}
               format={format}
@@ -448,26 +514,26 @@ export function IncomePicker({
         );
       })}
 
-      <div className="flex items-center justify-between gap-3">
-        {nextFree ? (
-          <button
-            type="button"
-            onClick={() => onChange([...splits, { incomeId: nextFree.id, text: "" }])}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-hover transition-colors"
-          >
-            {splits.length > 1 ? <Plus className="w-4 h-4" /> : <SplitIcon className="w-4 h-4" />}
-            {splits.length > 1 ? "Add another income" : "Spend from another income"}
-          </button>
-        ) : (
-          <span />
-        )}
+      {(!expenseToolbar || splits.length > 1) && (
+        <div className="flex items-center justify-between gap-3">
+          {!expenseToolbar && nextFree ? (
+            <button
+              type="button"
+              onClick={addSplit}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand hover:text-brand-hover transition-colors"
+            >
+              {splits.length > 1 ? <Plus className="w-4 h-4" /> : <SplitIcon className="w-4 h-4" />}
+              {splits.length > 1 ? "Add another income" : "Spend from another income"}
+            </button>
+          ) : <span />}
 
-        {splits.length > 1 && (
-          <span className="text-sm font-semibold text-ink-2 tabular">
-            Total {formatMoney(total, format)}
-          </span>
-        )}
-      </div>
+          {splits.length > 1 && (
+            <span className="text-sm font-semibold text-ink-2 tabular">
+              Total {formatMoney(total, format)}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }

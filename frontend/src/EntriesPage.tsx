@@ -3,17 +3,15 @@
 //   /income   — the lots themselves, each showing how much of it is left
 //   /expenses — draws, each showing which earning it was SPENT FROM
 //   /ledger   — everything, reservations included
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownLeft,
   ArrowUpRight,
   Download,
   Lock,
-  Pencil,
   Plus,
   Receipt,
   Search,
-  Trash2,
   Unlock,
   Wallet,
 } from "lucide-react";
@@ -34,6 +32,9 @@ import { staggerStyle } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 import { AppShell, LoadingScreen, PageHeader } from "@/components/AppShell";
 import { EmptyState, MoneyText, SourceChip } from "@/components/data-display";
+import { EntryActions } from "@/components/entry-actions";
+import { ExpenseAccordionCard } from "@/components/expense-accordion-card";
+import { Accordion } from "@/components/ui/accordion";
 import { EntryForm } from "@/EntryForm";
 import { IncomeCard } from "@/IncomeCard";
 import {
@@ -86,6 +87,7 @@ function EntryRow({
   labels,
   format,
   index,
+  expensePage,
   onEdit,
   onDelete,
 }: {
@@ -94,8 +96,9 @@ function EntryRow({
   labels: Map<string, Label>;
   format: MoneyFormat;
   index: number;
+  expensePage: boolean;
   onEdit?: (entry: Entry) => void;
-  onDelete?: (entry: Entry) => void;
+  onDelete?: (entry: Entry, trigger: HTMLButtonElement) => void;
 }) {
   const meta = KIND_META[entry.kind];
   const Icon = meta.icon;
@@ -105,7 +108,11 @@ function EntryRow({
 
   return (
     <div
-      className="glass-card glass-card-strong p-4 flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-[--motion-base] fill-mode-both"
+      className={cn(
+        "glass-card glass-card-strong transaction-glass ledger-row p-4 flex flex-wrap items-center gap-4 animate-in fade-in slide-in-from-bottom-2 duration-(--motion-base) fill-mode-both",
+        expensePage && "hidden md:flex",
+      )}
+      data-tone={editable ? entry.kind : undefined}
       style={staggerStyle(index)}
     >
       <span
@@ -135,6 +142,8 @@ function EntryRow({
                     : incomeTitle(income, format.locale)
                 }
                 colour={incomeColour(income, labels)}
+                className={expensePage ? "transaction-glass" : undefined}
+                tone={expensePage ? "income" : undefined}
               />
             );
           })}
@@ -147,12 +156,12 @@ function EntryRow({
         </div>
       </div>
 
-      <div className="flex items-center gap-3 ml-auto">
+      <div className="ledger-row-end flex min-w-0 items-center gap-3 ml-auto">
         <div className="text-right">
           <MoneyText
             minor={entry.total}
             format={format}
-            className={cn("font-semibold text-lg", entry.kind === "income" && "text-good")}
+            className={cn("font-semibold text-base md:text-lg wrap-anywhere", entry.kind === "income" && "text-good")}
           />
           <p className="text-xs font-medium text-ink-3">
             {new Date(entry.date).toLocaleDateString(format.locale, {
@@ -164,26 +173,57 @@ function EntryRow({
         </div>
 
         {editable && onEdit && onDelete && (
-          <div className="flex gap-1">
-            <button
-              aria-label="Edit entry"
-              onClick={() => onEdit(entry)}
-              className="w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
-            >
-              <Pencil className="w-4 h-4" />
-            </button>
-            <button
-              aria-label="Delete entry"
-              onClick={() => onDelete(entry)}
-              className="w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-critical hover:bg-white transition-colors"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
+          <EntryActions onEdit={() => onEdit(entry)} onDelete={(trigger) => onDelete(entry, trigger)} />
         )}
       </div>
     </div>
   );
+}
+
+interface EntryListProps {
+  grouped: [string, Entry[]][];
+  expensePage: boolean;
+  incomes: Map<string, Income>;
+  labels: Map<string, Label>;
+  format: MoneyFormat;
+  onEdit: (entry: Entry) => void;
+  onDelete: (entry: Entry, trigger: HTMLButtonElement) => void;
+}
+
+function EntryList({ grouped, expensePage, ...rowProps }: EntryListProps) {
+  const [expanded, setExpanded] = useState("");
+  const visibleExpanded = grouped.some(([, entries]) => entries.some(({ id }) => id === expanded))
+    ? expanded
+    : "";
+
+  // Retire an ID that disappeared during a refresh or deletion; never reopen it later.
+  useEffect(() => {
+    if (expanded && !visibleExpanded) setExpanded("");
+  }, [expanded, visibleExpanded]);
+
+  const months = grouped.map(([month, entries]) => (
+    <section key={month}>
+      <h2 className="section-heading font-serif text-ink-1 mb-3">
+        {monthLabel(month, rowProps.format.locale)}
+      </h2>
+      <div className="space-y-2.5">
+        {entries.map((entry, index) => (
+          <div key={entry.id}>
+            <EntryRow entry={entry} index={index} expensePage={expensePage} {...rowProps} />
+            {expensePage && (
+              <ExpenseAccordionCard entry={entry} index={index} expanded={visibleExpanded === entry.id} {...rowProps} />
+            )}
+          </div>
+        ))}
+      </div>
+    </section>
+  ));
+
+  return expensePage ? (
+    <Accordion type="single" collapsible value={visibleExpanded} onValueChange={setExpanded} className="space-y-6 md:space-y-8">
+      {months}
+    </Accordion>
+  ) : <div className="space-y-6 md:space-y-8">{months}</div>;
 }
 
 /** Expense totals per category for one month. */
@@ -214,11 +254,11 @@ function CategoryBreakdown({
   if (months.length === 0) return null;
 
   return (
-    <div className="glass-card glass-card-strong p-5 mb-6">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="font-serif text-2xl text-ink-1">Where it went</h2>
+    <div className="glass-card glass-card-strong content-card p-5 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-4 mb-4">
+        <h2 className="section-heading font-serif text-ink-1">Where it went</h2>
         <Select value={active} onValueChange={setMonth}>
-          <SelectTrigger className="field w-44">
+          <SelectTrigger aria-label="Expense breakdown month" className="field max-w-full w-fit sm:w-44">
             <SelectValue />
           </SelectTrigger>
           <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -236,8 +276,8 @@ function CategoryBreakdown({
       ) : (
         <div className="space-y-2.5">
           {rows.map((row) => (
-            <div key={row.name} className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-ink-2 w-32 shrink-0 truncate">
+            <div key={row.name} className="category-total-row">
+              <span className="text-sm font-semibold text-ink-2 min-w-0 truncate">
                 {row.name}
               </span>
               <div className="flex-1 h-2.5 rounded-full bg-surface-sunk overflow-hidden">
@@ -252,7 +292,7 @@ function CategoryBreakdown({
               <MoneyText
                 minor={row.total}
                 format={format}
-                className="text-sm font-semibold text-ink-1 w-28 text-right"
+                className="text-sm font-semibold text-ink-1 wrap-anywhere text-right"
               />
             </div>
           ))}
@@ -279,6 +319,7 @@ export function EntriesPage({ kind }: EntriesPageProps) {
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<Entry | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+  const deleteOpener = useRef<HTMLElement>(null);
 
   const isIncomePage = kind === "income";
   const isLedger = kind === undefined;
@@ -385,12 +426,13 @@ export function EntriesPage({ kind }: EntriesPageProps) {
 
       {kind === "expense" && <CategoryBreakdown labels={labelMap} format={format} />}
 
-      <div className="glass-card glass-card-strong p-4 mb-6 flex flex-wrap gap-3 items-center">
-        <div className="relative flex-1 min-w-[12rem]">
+      <div className="glass-card glass-card-strong entry-filters p-4 mb-6">
+        <div className="entry-search relative min-w-0">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
           <Input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
+            aria-label="Search descriptions"
             placeholder="Search descriptions…"
             className="field pl-10 w-full"
           />
@@ -398,7 +440,7 @@ export function EntriesPage({ kind }: EntriesPageProps) {
 
         {!isIncomePage && incomes.length > 0 && (
           <Select value={incomeId} onValueChange={setIncomeId}>
-            <SelectTrigger className="field w-56">
+            <SelectTrigger aria-label="Filter by income" className="field w-full min-w-0 md:w-56">
               <SelectValue placeholder="Any income" />
             </SelectTrigger>
             <SelectContent className="rounded-2xl border-hairline bg-white max-h-72">
@@ -414,7 +456,7 @@ export function EntriesPage({ kind }: EntriesPageProps) {
 
         {categories.length > 0 && (
           <Select value={categoryId} onValueChange={setCategoryId}>
-            <SelectTrigger className="field w-44">
+            <SelectTrigger aria-label="Filter by category" className="field w-full min-w-0 md:w-44">
               <SelectValue placeholder="All categories" />
             </SelectTrigger>
             <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -430,7 +472,7 @@ export function EntriesPage({ kind }: EntriesPageProps) {
 
         {accounts.length > 0 && (
           <Select value={accountId} onValueChange={setAccountId}>
-            <SelectTrigger className="field w-44">
+            <SelectTrigger aria-label="Filter by account" className="field w-full min-w-0 md:w-44">
               <SelectValue placeholder="All accounts" />
             </SelectTrigger>
             <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -468,6 +510,7 @@ export function EntriesPage({ kind }: EntriesPageProps) {
                 labels={labelMap}
                 format={format}
                 index={index}
+                categoryTint
                 onEdit={(target) => {
                   setEditing(target);
                   setFormOpen(true);
@@ -496,41 +539,28 @@ export function EntriesPage({ kind }: EntriesPageProps) {
           }
         />
       ) : (
-        <div className="space-y-8">
-          {grouped.map(([month, monthEntries]) => (
-            <section key={month}>
-              <h2 className="font-serif text-2xl text-ink-1 mb-3">
-                {monthLabel(month, format.locale)}
-              </h2>
-              <div className="space-y-2.5">
-                {monthEntries.map((entry, index) => (
-                  <EntryRow
-                    key={entry.id}
-                    entry={entry}
-                    incomes={incomeMap}
-                    labels={labelMap}
-                    format={format}
-                    index={index}
-                    onEdit={(target) => {
-                      setEditing(target);
-                      setFormOpen(true);
-                    }}
-                    onDelete={setPendingDelete}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
-        </div>
+        <EntryList
+          key={JSON.stringify(filters)}
+          grouped={grouped}
+          expensePage={kind === "expense"}
+          incomes={incomeMap}
+          labels={labelMap}
+          format={format}
+          onEdit={(target) => {
+            setEditing(target);
+            setFormOpen(true);
+          }}
+          onDelete={(target, trigger) => {
+            deleteOpener.current = trigger;
+            setPendingDelete(target);
+          }}
+        />
       )}
 
       <EntryForm
         kind={editing ? (editing.kind as "income" | "expense") : (kind ?? "expense")}
         open={formOpen}
-        onOpenChange={(next) => {
-          setFormOpen(next);
-          if (!next) setEditing(null);
-        }}
+        onOpenChange={setFormOpen}
         incomes={incomes}
         format={format}
         entry={editing}
@@ -540,7 +570,14 @@ export function EntriesPage({ kind }: EntriesPageProps) {
         open={Boolean(pendingDelete)}
         onOpenChange={(next) => !next && setPendingDelete(null)}
       >
-        <AlertDialogContent className="rounded-[32px] bg-canvas border-hairline">
+        <AlertDialogContent
+          className="rounded-[32px] bg-canvas border-hairline"
+          onCloseAutoFocus={(event) => {
+            if (!deleteOpener.current?.isConnected) return;
+            event.preventDefault();
+            deleteOpener.current.focus({ preventScroll: true });
+          }}
+        >
           <AlertDialogHeader>
             <AlertDialogTitle className="font-serif text-2xl text-ink-1">
               Delete this entry?

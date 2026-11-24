@@ -101,10 +101,10 @@ function LabelManager({ kind }: { kind: LabelKind }) {
   );
 
   return (
-    <section className="glass-card glass-card-strong p-6">
+    <section className="glass-card glass-card-strong content-card p-6">
       <div className="flex items-center gap-2 mb-1">
         <Icon className="w-5 h-5 text-brand" />
-        <h2 className="font-serif text-2xl text-ink-1">{meta.title}</h2>
+        <h2 className="section-heading font-serif text-ink-1">{meta.title}</h2>
       </div>
       <p className="text-sm font-medium text-ink-2 mb-4">{meta.blurb}</p>
 
@@ -125,19 +125,20 @@ function LabelManager({ kind }: { kind: LabelKind }) {
                     autoFocus
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    className="field h-9 flex-1"
+                    aria-label="New label name"
+                    className="field md:h-9 min-w-0 flex-1"
                   />
                   <button
                     aria-label="Save name"
                     onClick={() => draft.trim() && renameMutation.mutate(label)}
-                    className="w-8 h-8 rounded-full grid place-items-center text-good hover:bg-white"
+                    className="size-11 md:size-8 shrink-0 rounded-full grid place-items-center text-good hover:bg-white"
                   >
                     <Check className="w-4 h-4" />
                   </button>
                   <button
                     aria-label="Cancel rename"
                     onClick={() => setEditingId(null)}
-                    className="w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:bg-white"
+                    className="size-11 md:size-8 shrink-0 rounded-full grid place-items-center text-ink-3 hover:bg-white"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -148,25 +149,29 @@ function LabelManager({ kind }: { kind: LabelKind }) {
                     <button
                       aria-label={`Change colour for ${label.name}`}
                       onClick={() => setColourFor(label)}
-                      className="w-5 h-5 rounded-full shrink-0 hover:scale-110 transition-transform duration-[--motion-fast]"
-                      style={{ backgroundColor: colourForSlot(label.colourSlot) }}
-                    />
+                      className="size-11 md:size-5 -ml-1 md:ml-0 rounded-full shrink-0 grid place-items-center"
+                    >
+                      <span
+                        className="size-5 rounded-full transition-transform duration-(--motion-fast) hover:scale-110"
+                        style={{ backgroundColor: colourForSlot(label.colourSlot) }}
+                      />
+                    </button>
                   )}
-                  <span className="flex-1 font-semibold text-ink-1 truncate">{label.name}</span>
+                  <span className="min-w-0 flex-1 text-sm md:text-base font-semibold text-ink-1 wrap-anywhere md:truncate">{label.name}</span>
                   <button
                     aria-label={`Rename ${label.name}`}
                     onClick={() => {
                       setEditingId(label.id);
                       setDraft(label.name);
                     }}
-                    className="w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
+                    className="size-11 md:size-8 shrink-0 rounded-full grid place-items-center text-ink-3 hover:text-ink-1 hover:bg-white transition-colors"
                   >
                     <Pencil className="w-4 h-4" />
                   </button>
                   <button
                     aria-label={`Delete ${label.name}`}
                     onClick={() => removeMutation.mutate(label)}
-                    className="w-8 h-8 rounded-full grid place-items-center text-ink-3 hover:text-critical hover:bg-white transition-colors"
+                    className="size-11 md:size-8 shrink-0 rounded-full grid place-items-center text-ink-3 hover:text-critical hover:bg-white transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -180,7 +185,7 @@ function LabelManager({ kind }: { kind: LabelKind }) {
       <Dialog open={Boolean(colourFor)} onOpenChange={(next) => !next && setColourFor(null)}>
         <DialogContent className="sm:max-w-sm rounded-[32px] bg-canvas border-hairline p-6">
           <DialogHeader>
-            <DialogTitle className="font-serif text-2xl text-ink-1">
+            <DialogTitle className="section-heading font-serif text-ink-1 wrap-anywhere">
               Colour for {colourFor?.name}
             </DialogTitle>
           </DialogHeader>
@@ -230,9 +235,9 @@ export function SettingsPage() {
     <AppShell>
       <PageHeader title="Settings" subtitle={user?.email ?? undefined} />
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        <section className="glass-card glass-card-strong p-6">
-          <h2 className="font-serif text-2xl text-ink-1 mb-1">Currency &amp; format</h2>
+      <div className="grid lg:grid-cols-2 gap-4 md:gap-6">
+        <section className="glass-card glass-card-strong content-card p-6">
+          <h2 className="section-heading font-serif text-ink-1 mb-1">Currency &amp; format</h2>
           <p className="text-sm font-medium text-ink-2 mb-4">
             Display only. Changing these never converts a single stored amount — ₹5,000
             simply becomes $5,000.
@@ -242,7 +247,7 @@ export function SettingsPage() {
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-ink-2">Currency</Label>
               <Select value={currency} onValueChange={setCurrency}>
-                <SelectTrigger className="field w-full">
+                <SelectTrigger aria-label="Currency" className="field w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -258,7 +263,7 @@ export function SettingsPage() {
             <div className="space-y-2">
               <Label className="text-sm font-semibold text-ink-2">Number format</Label>
               <Select value={locale} onValueChange={setLocale}>
-                <SelectTrigger className="field w-full">
+                <SelectTrigger aria-label="Number format" className="field w-full">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -294,7 +299,7 @@ export function SettingsPage() {
           </button>
         </section>
 
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
           <LabelManager kind="income_category" />
           <LabelManager kind="expense_category" />
           <LabelManager kind="account" />

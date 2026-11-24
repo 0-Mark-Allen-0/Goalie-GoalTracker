@@ -133,8 +133,8 @@ function CategoryList({
               : "Uncategorised";
             const share = total > 0 ? (row.total / total) * 100 : 0;
             return (
-              <div key={name} className="flex items-center gap-3">
-                <span className="text-sm font-semibold text-ink-2 w-28 shrink-0 truncate">
+              <div key={name} className="category-total-row md:grid-cols-[7rem_minmax(0,1fr)_7rem]">
+                <span className="text-sm font-semibold text-ink-2 min-w-0 truncate">
                   {name}
                 </span>
                 <div className="flex-1 h-2.5 rounded-full bg-surface-sunk overflow-hidden">
@@ -150,7 +150,7 @@ function CategoryList({
                 <MoneyText
                   minor={row.total}
                   format={format}
-                  className="text-sm font-semibold text-ink-1 w-28 text-right"
+                  className="text-sm font-semibold text-ink-1 wrap-anywhere text-right"
                 />
               </div>
             );
@@ -219,7 +219,7 @@ export function Insights() {
         subtitle="Profit and loss, plus what is left of each earning."
         action={
           <Select value={range} onValueChange={(next) => setRange(next as Range)}>
-            <SelectTrigger className="field w-44">
+            <SelectTrigger aria-label="Reporting period" className="field w-44">
               <SelectValue />
             </SelectTrigger>
             <SelectContent className="rounded-2xl border-hairline bg-white">
@@ -234,7 +234,7 @@ export function Insights() {
       />
 
       {/* --- Profit and loss --- */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 md:gap-4 mb-5 md:mb-6 max-sm:[&>:last-child]:col-span-2">
         <StatTile label="Earned" minor={totals.income} format={format} />
         <StatTile label="Spent" minor={totals.expense} format={format} />
         <StatTile
@@ -247,26 +247,26 @@ export function Insights() {
       </div>
 
       {chartData.length > 0 && (
-        <section className="glass-card glass-card-strong p-6 mb-8">
-          <h2 className="font-serif text-2xl text-ink-1 mb-1">Profit &amp; loss</h2>
+        <section className="glass-card glass-card-strong content-card p-6 mb-5 md:mb-8">
+          <h2 className="section-heading font-serif text-ink-1 mb-1">Profit &amp; loss</h2>
           <p className="text-sm font-medium text-ink-2 mb-5">
             This is a period view: money earned in August and spent in September counts
             as August income and September expense. To see how far a single earning has
             been drawn down, look below.
           </p>
-          <div className="w-full h-72">
+          <div className="w-full h-60 md:h-72">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData} margin={{ top: 4, right: 8, left: 8, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#dfdad1" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--hairline)" vertical={false} />
                 <XAxis
                   dataKey="period"
-                  tick={{ fill: "#57534b", fontSize: 12, fontWeight: 600 }}
+                  tick={{ fill: "var(--ink-2)", fontSize: 12, fontWeight: 600 }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
                   tickFormatter={(value: number) => formatMoneyCompact(value, format)}
-                  tick={{ fill: "#8a857b", fontSize: 11 }}
+                  tick={{ fill: "var(--ink-3)", fontSize: 11 }}
                   axisLine={false}
                   tickLine={false}
                   width={64}
@@ -276,7 +276,7 @@ export function Insights() {
                   content={<MoneyTooltip format={format} />}
                 />
                 <Legend
-                  wrapperStyle={{ fontSize: 12, fontWeight: 600, color: "#57534b" }}
+                  wrapperStyle={{ fontSize: 12, fontWeight: 600, color: "var(--ink-2)" }}
                   iconType="circle"
                 />
                 <Bar dataKey="Income" fill={INCOME_COLOUR} radius={[4, 4, 0, 0]} />
@@ -285,7 +285,7 @@ export function Insights() {
             </ResponsiveContainer>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-8 mt-8 pt-6 border-t border-hairline">
+          <div className="grid md:grid-cols-2 gap-5 md:gap-8 mt-5 md:mt-8 pt-4 md:pt-6 border-t border-hairline">
             <CategoryList
               title="Earned by category"
               rows={pnl?.incomeByCategory ?? []}
@@ -303,8 +303,8 @@ export function Insights() {
           </div>
 
           {(pnl?.periods.length ?? 0) > 0 && (
-            <div className="mt-8 pt-6 border-t border-hairline overflow-x-auto">
-              <table className="w-full text-sm min-w-[24rem]">
+            <div className="mt-5 md:mt-8 pt-4 md:pt-6 border-t border-hairline">
+              <table className="w-full max-md:table-fixed text-xs md:text-sm wrap-anywhere">
                 <thead>
                   <tr className="text-left text-xs font-semibold uppercase tracking-wider text-ink-3">
                     <th className="pb-2 font-semibold">Period</th>
@@ -341,8 +341,8 @@ export function Insights() {
       )}
 
       {/* --- Lot drawdown --- */}
-      <section className="glass-card glass-card-strong p-6 mb-8">
-        <h2 className="font-serif text-2xl text-ink-1 mb-1">What is left of each earning</h2>
+      <section className="glass-card glass-card-strong content-card p-6 mb-5 md:mb-8">
+        <h2 className="section-heading font-serif text-ink-1 mb-1">What is left of each earning</h2>
         <p className="text-sm font-medium text-ink-2 mb-5">
           Spent sits in neutral, reserved is hatched because it is still here, and the
           solid block is what you can still spend.
@@ -351,10 +351,10 @@ export function Insights() {
           {drawnLots.map((income) => (
             <div key={income.id}>
               <div className="flex items-baseline justify-between gap-3 mb-2">
-                <span className="font-semibold text-ink-1 truncate">
+                <span className="font-semibold text-ink-1 min-w-0 wrap-anywhere md:truncate">
                   {incomeTitle(income, format.locale)}
                 </span>
-                <span className="text-sm font-semibold text-ink-3 tabular shrink-0">
+                <span className="text-sm font-semibold text-ink-3 tabular max-md:max-w-[45%] md:shrink-0 wrap-anywhere text-right">
                   {formatMoney(income.total, format)} earned
                 </span>
               </div>
@@ -384,8 +384,8 @@ export function Insights() {
       </section>
 
       {/* --- Goal funding --- */}
-      <section className="glass-card glass-card-strong p-6">
-        <h2 className="font-serif text-2xl text-ink-1 mb-1">Goal funding</h2>
+      <section className="glass-card glass-card-strong content-card p-6">
+        <h2 className="section-heading font-serif text-ink-1 mb-1">Goal funding</h2>
         <p className="text-sm font-medium text-ink-2 mb-5">
           Which earnings are standing behind each goal.
         </p>

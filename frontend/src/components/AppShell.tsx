@@ -3,37 +3,20 @@
 import { useEffect, type ReactNode } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  BarChart3,
-  LayoutDashboard,
-  ListOrdered,
-  LogOut,
-  Settings,
-  Target,
-  Wallet,
-} from "lucide-react";
+import { LogOut, Settings, Wallet } from "lucide-react";
 import { toast } from "sonner";
 
 import { logout } from "@/api";
 import { useSession } from "@/hooks/queries";
+import { DESKTOP_NAV } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
+import { MobileNavigation } from "@/components/mobile-navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
-const NAV = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/income", label: "Income", icon: ArrowDownLeft },
-  { to: "/expenses", label: "Expenses", icon: ArrowUpRight },
-  { to: "/goals", label: "Goals", icon: Target },
-  { to: "/ledger", label: "Ledger", icon: ListOrdered },
-  { to: "/insights", label: "Insights", icon: BarChart3 },
-];
 
 export function AppShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
@@ -56,9 +39,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   return (
-    <div className="min-h-screen bg-canvas pb-16">
-      <header className="bg-white/40 backdrop-blur-xl border-b border-white/60 sticky top-0 z-50">
-        <div className="container mx-auto px-4 sm:px-6 h-18 py-3 flex items-center justify-between gap-4">
+    <div className="app-shell">
+      <header className="app-header sticky top-0 z-30 border-b">
+        <div className="container mx-auto px-4 sm:px-6 h-15 md:h-18 py-2 md:py-3 flex items-center justify-between gap-3 lg:gap-4">
           <button
             onClick={() => navigate("/dashboard")}
             className="flex items-center gap-2.5 shrink-0"
@@ -69,14 +52,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             <span className="font-serif text-2xl text-ink-1">Goalie</span>
           </button>
 
-          <nav className="hidden md:flex items-center gap-1 bg-white/50 rounded-full p-1 border border-white/70">
-            {NAV.map((item) => (
+          <nav aria-label="Primary navigation" className="hidden md:flex items-center gap-1 bg-white/50 rounded-full p-1 border border-white/70">
+            {DESKTOP_NAV.map((item) => (
               <NavLink
                 key={item.to}
                 to={item.to}
                 className={({ isActive }) =>
                   cn(
-                    "px-3.5 py-1.5 rounded-full text-sm font-semibold transition-all duration-[--motion-base]",
+                    "px-2 lg:px-3.5 py-1.5 rounded-full text-sm font-semibold transition-all duration-(--motion-base)",
                     isActive
                       ? "bg-brand text-brand-ink shadow-sm"
                       : "text-ink-2 hover:bg-white hover:text-ink-1",
@@ -90,11 +73,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 rounded-full bg-white/60 border border-white/70 pl-3 pr-2 py-1.5 hover:bg-white transition-colors">
-                <span className="hidden sm:block text-sm font-semibold text-ink-2 max-w-[10rem] truncate">
+              <button aria-label="Account menu" className="flex min-h-11 md:min-h-0 min-w-0 items-center gap-2 rounded-full bg-white/60 border border-white/70 px-2 md:pl-3 py-1.5 hover:bg-white transition-colors">
+                <span className="hidden sm:block text-sm font-semibold text-ink-2 max-w-20 lg:max-w-[10rem] truncate">
                   {user?.name || user?.email || "Account"}
                 </span>
-                <span className="w-7 h-7 rounded-full bg-brand text-brand-ink grid place-items-center text-xs font-bold">
+                <span className="w-7 h-7 shrink-0 rounded-full bg-brand text-brand-ink grid place-items-center text-xs font-bold">
                   {(user?.name || user?.email || "?").charAt(0).toUpperCase()}
                 </span>
               </button>
@@ -109,28 +92,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
-
-        {/* Same destinations, horizontally scrollable, for narrow screens. */}
-        <nav className="md:hidden flex items-center gap-1 px-4 pb-3 overflow-x-auto no-scrollbar">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  "shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-semibold transition-colors",
-                  isActive ? "bg-brand text-brand-ink" : "bg-white/60 text-ink-2",
-                )
-              }
-            >
-              <item.icon className="w-4 h-4" />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
       </header>
 
-      <main className="container mx-auto px-4 sm:px-6 pt-8">{children}</main>
+      <main className="container mx-auto px-4 sm:px-6 pt-5 md:pt-8">{children}</main>
+      <MobileNavigation />
     </div>
   );
 }
@@ -145,10 +110,10 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 mb-6 animate-in fade-in slide-in-from-bottom-2 duration-[--motion-slow]">
-      <div>
-        <h1 className="font-serif text-4xl text-ink-1">{title}</h1>
-        {subtitle && <p className="text-ink-2 font-medium mt-1">{subtitle}</p>}
+    <div className="flex flex-wrap items-end justify-between gap-3 md:gap-4 mb-5 md:mb-6 animate-in fade-in slide-in-from-bottom-2 duration-(--motion-slow)">
+      <div className="min-w-0">
+        <h1 className="page-heading font-serif text-ink-1">{title}</h1>
+        {subtitle && <p className="text-sm md:text-base text-ink-2 font-medium mt-1 wrap-anywhere">{subtitle}</p>}
       </div>
       {action}
     </div>
